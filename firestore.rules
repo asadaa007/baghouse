@@ -1,0 +1,146 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    function isProjectMember(projectId) {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/projects/$(projectId)) &&
+        request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.members;
+    }
+    
+    function isProjectOwner(projectId) {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/projects/$(projectId)) &&
+        request.auth.uid == get(/databases/$(database)/documents/projects/$(projectId)).data.ownerId;
+    }
+    
+    function isBugReporter(bugId) {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/bugs/$(bugId)) &&
+        request.auth.uid == get(/databases/$(database)/documents/bugs/$(bugId)).data.reporter;
+    }
+    
+    function isBugAssignee(bugId) {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/bugs/$(bugId)) &&
+        request.auth.uid == get(/databases/$(database)/documents/bugs/$(bugId)).data.assignee;
+    }
+    
+    function canAccessBug(bugId) {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/bugs/$(bugId)) &&
+        (
+          isBugReporter(bugId) ||
+          isBugAssignee(bugId) ||
+          isProjectMember(get(/databases/$(database)/documents/bugs/$(bugId)).data.projectId)
+        );
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (isOwner(userId) || isProjectMember(resource.data.projectId));
+      allow create: if isAuthenticated() && isOwner(userId);
+      allow update: if isAuthenticated() && isOwner(userId);
+      allow delete: if isAuthenticated() && isOwner(userId);
+    }
+
+    // Projects collection
+    match /projects/{projectId} {
+      allow read: if isAuthenticated() && isProjectMember(projectId);
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (isProjectOwner(projectId) || isProjectMember(projectId));
+      allow delete: if isAuthenticated() && isProjectOwner(projectId);
+    }
+
+    // Bugs collection
+    match /bugs/{bugId} {
+      allow read: if canAccessBug(bugId);
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (
+        isBugReporter(bugId) || 
+        isBugAssignee(bugId) || 
+        isProjectMember(resource.data.projectId)
+      );
+      allow delete: if isAuthenticated() && (
+        isBugReporter(bugId) || 
+        isProjectOwner(resource.data.projectId)
+      );
+    }
+
+    // Comments collection (subcollection of bugs)
+    match /bugs/{bugId}/comments/{commentId} {
+      allow read: if canAccessBug(bugId);
+      allow create: if isAuthenticated() && canAccessBug(bugId);
+      allow update: if isAuthenticated() && (
+        isOwner(resource.data.userId) || 
+        isProjectOwner(get(/databases/$(database)/documents/bugs/$(bugId)).data.projectId)
+      );
+      allow delete: if isAuthenticated() && (
+        isOwner(resource.data.userId) || 
+        isProjectOwner(get(/databases/$(database)/documents/bugs/$(bugId)).data.projectId)
+      );
+    }
+
+    // Attachments collection (subcollection of bugs)
+    match /bugs/{bugId}/attachments/{attachmentId} {
+      allow read: if canAccessBug(bugId);
+      allow create: if isAuthenticated() && canAccessBug(bugId);
+      allow update: if isAuthenticated() && (
+        isOwner(resource.data.userId) || 
+        isProjectOwner(get(/databases/$(database)/documents/bugs/$(bugId)).data.projectId)
+      );
+      allow delete: if isAuthenticated() && (
+        isOwner(resource.data.userId) || 
+        isProjectOwner(get(/databases/$(database)/documents/bugs/$(bugId)).data.projectId)
+      );
+    }
+
+    // Project members collection (subcollection of projects)
+    match /projects/{projectId}/members/{memberId} {
+      allow read: if isProjectMember(projectId);
+      allow create: if isAuthenticated() && isProjectOwner(projectId);
+      allow update: if isAuthenticated() && isProjectOwner(projectId);
+      allow delete: if isAuthenticated() && isProjectOwner(projectId);
+    }
+
+    // Project settings collection (subcollection of projects)
+    match /projects/{projectId}/settings/{settingId} {
+      allow read: if isProjectMember(projectId);
+      allow create: if isAuthenticated() && isProjectOwner(projectId);
+      allow update: if isAuthenticated() && isProjectOwner(projectId);
+      allow delete: if isAuthenticated() && isProjectOwner(projectId);
+    }
+
+    // Notifications collection
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && isOwner(resource.data.userId);
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && isOwner(resource.data.userId);
+      allow delete: if isAuthenticated() && isOwner(resource.data.userId);
+    }
+
+    // Activity logs collection
+    match /activity_logs/{logId} {
+      allow read: if isAuthenticated() && (
+        isOwner(resource.data.userId) || 
+        isProjectMember(resource.data.projectId)
+      );
+      allow create: if isAuthenticated();
+      allow update: if false; // Activity logs should be immutable
+      allow delete: if isAuthenticated() && isProjectOwner(resource.data.projectId);
+    }
+
+    // Default deny all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
