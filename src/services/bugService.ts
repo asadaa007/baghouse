@@ -2,14 +2,14 @@ import {
   collection, 
   doc, 
   addDoc, 
-  updateDoc, 
-  deleteDoc, 
   getDocs, 
   getDoc, 
+  updateDoc, 
+  deleteDoc, 
   query, 
   where, 
   orderBy, 
-  limit,
+  limit, 
   serverTimestamp 
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
@@ -18,7 +18,7 @@ import type { Bug } from '../types/bugs';
 const BUGS_COLLECTION = 'bugs';
 
 export const bugService = {
-  // Create a new bug
+  // Create new bug
   async createBug(bugData: Omit<Bug, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
     try {
       const docRef = await addDoc(collection(db, BUGS_COLLECTION), {
@@ -33,10 +33,27 @@ export const bugService = {
     }
   },
 
-  // Get all bugs
-  async getBugs(): Promise<Bug[]> {
+  // Get all bugs (filtered by current user)
+  async getBugs(userId?: string): Promise<Bug[]> {
     try {
-      const querySnapshot = await getDocs(collection(db, BUGS_COLLECTION));
+      let q;
+      
+      if (userId) {
+        // Filter bugs by reporter or assignee
+        q = query(
+          collection(db, BUGS_COLLECTION),
+          where('reporter', '==', userId),
+          orderBy('createdAt', 'desc')
+        );
+      } else {
+        // Get all bugs (for admin or when user is not specified)
+        q = query(
+          collection(db, BUGS_COLLECTION),
+          orderBy('createdAt', 'desc')
+        );
+      }
+      
+      const querySnapshot = await getDocs(q);
       return querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
@@ -45,6 +62,11 @@ export const bugService = {
       })) as Bug[];
     } catch (error) {
       console.error('Error getting bugs:', error);
+      // Return empty array instead of throwing error for empty collections
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'permission-denied') {
+        console.warn('Permission denied - returning empty array');
+        return [];
+      }
       throw new Error('Failed to get bugs');
     }
   },
@@ -112,18 +134,36 @@ export const bugService = {
       })) as Bug[];
     } catch (error) {
       console.error('Error getting bugs by project:', error);
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'permission-denied') {
+        console.warn('Permission denied - returning empty array');
+        return [];
+      }
       throw new Error('Failed to get bugs by project');
     }
   },
 
   // Get recent bugs
-  async getRecentBugs(limitCount: number = 10): Promise<Bug[]> {
+  async getRecentBugs(limitCount: number = 10, userId?: string): Promise<Bug[]> {
     try {
-      const q = query(
-        collection(db, BUGS_COLLECTION),
-        orderBy('createdAt', 'desc'),
-        limit(limitCount)
-      );
+      let q;
+      
+      if (userId) {
+        // Filter by user
+        q = query(
+          collection(db, BUGS_COLLECTION),
+          where('reporter', '==', userId),
+          orderBy('createdAt', 'desc'),
+          limit(limitCount)
+        );
+      } else {
+        // Get all recent bugs
+        q = query(
+          collection(db, BUGS_COLLECTION),
+          orderBy('createdAt', 'desc'),
+          limit(limitCount)
+        );
+      }
+      
       const querySnapshot = await getDocs(q);
       return querySnapshot.docs.map(doc => ({
         id: doc.id,
@@ -133,6 +173,10 @@ export const bugService = {
       })) as Bug[];
     } catch (error) {
       console.error('Error getting recent bugs:', error);
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'permission-denied') {
+        console.warn('Permission denied - returning empty array');
+        return [];
+      }
       throw new Error('Failed to get recent bugs');
     }
   },

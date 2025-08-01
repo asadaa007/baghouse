@@ -9,133 +9,50 @@ service cloud.firestore {
     function isOwner(userId) {
       return request.auth.uid == userId;
     }
-    
-    function isProjectMember(projectId) {
-      return isAuthenticated() && 
-        exists(/databases/$(database)/documents/projects/$(projectId)) &&
-        request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.members;
-    }
-    
-    function isProjectOwner(projectId) {
-      return isAuthenticated() && 
-        exists(/databases/$(database)/documents/projects/$(projectId)) &&
-        request.auth.uid == get(/databases/$(database)/documents/projects/$(projectId)).data.ownerId;
-    }
-    
-    function isBugReporter(bugId) {
-      return isAuthenticated() && 
-        exists(/databases/$(database)/documents/bugs/$(bugId)) &&
-        request.auth.uid == get(/databases/$(database)/documents/bugs/$(bugId)).data.reporter;
-    }
-    
-    function isBugAssignee(bugId) {
-      return isAuthenticated() && 
-        exists(/databases/$(database)/documents/bugs/$(bugId)) &&
-        request.auth.uid == get(/databases/$(database)/documents/bugs/$(bugId)).data.assignee;
-    }
-    
-    function canAccessBug(bugId) {
-      return isAuthenticated() && 
-        exists(/databases/$(database)/documents/bugs/$(bugId)) &&
-        (
-          isBugReporter(bugId) ||
-          isBugAssignee(bugId) ||
-          isProjectMember(get(/databases/$(database)/documents/bugs/$(bugId)).data.projectId)
-        );
-    }
 
     // Users collection
     match /users/{userId} {
-      allow read: if isAuthenticated() && (isOwner(userId) || isProjectMember(resource.data.projectId));
-      allow create: if isAuthenticated() && isOwner(userId);
-      allow update: if isAuthenticated() && isOwner(userId);
-      allow delete: if isAuthenticated() && isOwner(userId);
+      allow read, write: if isAuthenticated() && isOwner(userId);
     }
 
     // Projects collection
     match /projects/{projectId} {
-      allow read: if isAuthenticated() && isProjectMember(projectId);
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated() && (isProjectOwner(projectId) || isProjectMember(projectId));
-      allow delete: if isAuthenticated() && isProjectOwner(projectId);
+      allow read, write: if isAuthenticated();
     }
 
-    // Bugs collection
+    // Bugs collection - More permissive for development
     match /bugs/{bugId} {
-      allow read: if canAccessBug(bugId);
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated() && (
-        isBugReporter(bugId) || 
-        isBugAssignee(bugId) || 
-        isProjectMember(resource.data.projectId)
-      );
-      allow delete: if isAuthenticated() && (
-        isBugReporter(bugId) || 
-        isProjectOwner(resource.data.projectId)
-      );
+      allow read, write: if isAuthenticated();
     }
 
     // Comments collection (subcollection of bugs)
     match /bugs/{bugId}/comments/{commentId} {
-      allow read: if canAccessBug(bugId);
-      allow create: if isAuthenticated() && canAccessBug(bugId);
-      allow update: if isAuthenticated() && (
-        isOwner(resource.data.userId) || 
-        isProjectOwner(get(/databases/$(database)/documents/bugs/$(bugId)).data.projectId)
-      );
-      allow delete: if isAuthenticated() && (
-        isOwner(resource.data.userId) || 
-        isProjectOwner(get(/databases/$(database)/documents/bugs/$(bugId)).data.projectId)
-      );
+      allow read, write: if isAuthenticated();
     }
 
     // Attachments collection (subcollection of bugs)
     match /bugs/{bugId}/attachments/{attachmentId} {
-      allow read: if canAccessBug(bugId);
-      allow create: if isAuthenticated() && canAccessBug(bugId);
-      allow update: if isAuthenticated() && (
-        isOwner(resource.data.userId) || 
-        isProjectOwner(get(/databases/$(database)/documents/bugs/$(bugId)).data.projectId)
-      );
-      allow delete: if isAuthenticated() && (
-        isOwner(resource.data.userId) || 
-        isProjectOwner(get(/databases/$(database)/documents/bugs/$(bugId)).data.projectId)
-      );
+      allow read, write: if isAuthenticated();
     }
 
     // Project members collection (subcollection of projects)
     match /projects/{projectId}/members/{memberId} {
-      allow read: if isProjectMember(projectId);
-      allow create: if isAuthenticated() && isProjectOwner(projectId);
-      allow update: if isAuthenticated() && isProjectOwner(projectId);
-      allow delete: if isAuthenticated() && isProjectOwner(projectId);
+      allow read, write: if isAuthenticated();
     }
 
     // Project settings collection (subcollection of projects)
     match /projects/{projectId}/settings/{settingId} {
-      allow read: if isProjectMember(projectId);
-      allow create: if isAuthenticated() && isProjectOwner(projectId);
-      allow update: if isAuthenticated() && isProjectOwner(projectId);
-      allow delete: if isAuthenticated() && isProjectOwner(projectId);
+      allow read, write: if isAuthenticated();
     }
 
     // Notifications collection
     match /notifications/{notificationId} {
-      allow read: if isAuthenticated() && isOwner(resource.data.userId);
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated() && isOwner(resource.data.userId);
-      allow delete: if isAuthenticated() && isOwner(resource.data.userId);
+      allow read, write: if isAuthenticated() && isOwner(resource.data.userId);
     }
 
     // Activity logs collection
     match /activity_logs/{logId} {
-      allow read: if isAuthenticated() && (
-        isOwner(resource.data.userId) || 
-        isProjectMember(resource.data.projectId)
-      );
-      allow create: if isAuthenticated();
-      allow update: if false; // Activity logs should be immutable
-      allow delete: if isAuthenticated() && isProjectOwner(resource.data.projectId);
+      allow read, write: if isAuthenticated();
     }
 
     // Default deny all

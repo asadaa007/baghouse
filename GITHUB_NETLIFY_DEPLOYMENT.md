@@ -52,6 +52,7 @@ VITE_FIREBASE_APP_ID=your_app_id
 
 # Cloudinary Configuration (Free File Storage)
 VITE_CLOUDINARY_CLOUD_NAME=your_cloud_name
+VITE_CLOUDINARY_UPLOAD_PRESET=your_upload_preset
 VITE_CLOUDINARY_API_KEY=your_api_key
 VITE_CLOUDINARY_API_SECRET=your_api_secret
 ```
