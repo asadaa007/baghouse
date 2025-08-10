@@ -12,7 +12,7 @@ export interface UploadResult {
 
 export const cloudinaryService = {
   // Upload file to Cloudinary using unsigned upload
-  async uploadFile(file: File, folder: string = 'baghous'): Promise<UploadResult> {
+      async uploadFile(file: File, folder: string = 'bugkiller'): Promise<UploadResult> {
     try {
       // Check if Cloudinary is configured
       const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;

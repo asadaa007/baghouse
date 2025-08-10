@@ -1,19 +1,23 @@
+import React from 'react';
+
 interface LoadingProps {
   size?: 'sm' | 'md' | 'lg';
   text?: string;
 }
 
-const Loading = ({ size = 'md', text = 'Loading...' }: LoadingProps) => {
+const Loading: React.FC<LoadingProps> = ({ size = 'md', text }) => {
   const sizeClasses = {
     sm: 'h-4 w-4',
     md: 'h-8 w-8',
-    lg: 'h-12 w-12',
+    lg: 'h-12 w-12'
   };
 
   return (
-    <div className="flex flex-col items-center justify-center space-y-4">
+    <div className="flex flex-col items-center justify-center">
       <div className={`animate-spin rounded-full border-b-2 border-primary ${sizeClasses[size]}`}></div>
-      {text && <p className="text-sm text-gray-600">{text}</p>}
+      {text && (
+        <p className="mt-2 text-sm text-gray-600">{text}</p>
+      )}
     </div>
   );
 };

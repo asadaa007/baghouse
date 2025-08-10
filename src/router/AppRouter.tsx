@@ -5,9 +5,12 @@ import Login from '../pages/Login';
 import Register from '../pages/Register';
 import Dashboard from '../pages/Dashboard';
 import Projects from '../pages/Projects';
+import ProjectDetail from '../pages/ProjectDetail';
 import Bugs from '../pages/Bugs';
 import BugDetail from '../pages/BugDetail';
 import Settings from '../pages/Settings';
+import UserManagement from '../pages/UserManagement';
+import RoleBasedRoute from '../components/common/RoleBasedRoute';
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
@@ -29,6 +32,8 @@ const AppRouter = () => {
       {/* Public Routes */}
       <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />
+      
+      {/* Public Routes */}
       <Route path="/register" element={<Register />} />
 
       {/* Protected Routes */}
@@ -45,6 +50,14 @@ const AppRouter = () => {
         element={
           <ProtectedRoute>
             <Projects />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/projects/:projectId"
+        element={
+          <ProtectedRoute>
+            <ProjectDetail />
           </ProtectedRoute>
         }
       />
@@ -70,6 +83,14 @@ const AppRouter = () => {
           <ProtectedRoute>
             <Settings />
           </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/user-management"
+        element={
+          <RoleBasedRoute allowedRoles={['super_admin', 'manager']}>
+            <UserManagement />
+          </RoleBasedRoute>
         }
       />
 

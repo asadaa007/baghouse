@@ -1,5 +1,6 @@
 import { useParams } from 'react-router-dom';
 import { useBugs } from '../context/BugContext';
+import Navigation from '../components/layout/Navigation';
 import { ArrowLeft, Edit, MessageSquare, Paperclip } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -24,24 +25,20 @@ const BugDetail = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
-            <div className="flex items-center">
-              <Link to="/bugs" className="text-gray-400 hover:text-gray-600 mr-4">
-                <ArrowLeft className="w-5 h-5" />
-              </Link>
-              <h1 className="text-2xl font-bold text-primary">Baghous</h1>
-            </div>
-            <button className="btn-primary">
-              <Edit className="w-4 h-4 mr-2" />
-              Edit Bug
-            </button>
-          </div>
-        </div>
-      </header>
-
+      <Navigation />
+      
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Back Button and Edit */}
+        <div className="flex items-center justify-between mb-6">
+          <Link to="/bugs" className="flex items-center text-gray-600 hover:text-gray-900 transition-colors">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Bugs
+          </Link>
+          <button className="btn-primary">
+            <Edit className="w-4 h-4 mr-2" />
+            Edit Bug
+          </button>
+        </div>
         <div className="bg-white rounded-lg shadow-sm">
           <div className="px-6 py-4 border-b border-gray-200">
             <div className="flex items-center justify-between">

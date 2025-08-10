@@ -1,6 +1,6 @@
 # 🚀 GitHub + Netlify Deployment Guide
 
-This guide will help you deploy your Baghous application to Netlify using GitHub as your repository.
+This guide will help you deploy your BugKiller application to Netlify using GitHub as your repository.
 
 ## 📋 Prerequisites
 
@@ -28,10 +28,10 @@ git init
 git add .
 
 # Create initial commit
-git commit -m "Initial commit: Baghous bug tracking application"
+git commit -m "Initial commit: BugKiller bug tracking application"
 
 # Add your GitHub repository as remote
-git remote add origin https://github.com/YOUR_USERNAME/baghous.git
+git remote add origin https://github.com/YOUR_USERNAME/bugkiller.git
 
 # Push to GitHub
 git push -u origin main
@@ -68,7 +68,7 @@ VITE_CLOUDINARY_API_SECRET=your_api_secret
 2. **Connect to GitHub**
    - Choose GitHub as your Git provider
    - Authorize Netlify to access your repositories
-   - Select your `baghous` repository
+   - Select your `bugkiller` repository
 
 3. **Configure Build Settings**
    - **Build command:** `npm run build`
@@ -280,7 +280,7 @@ echo $VITE_FIREBASE_API_KEY
 - ✅ Authentication system functional
 - ✅ Bug tracking features operational
 
-**Your Baghous application is now live and ready for production use!** 🚀
+**Your BugKiller application is now live and ready for production use!** 🚀
 
 ---
 

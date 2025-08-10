@@ -1,6 +1,8 @@
 import { BrowserRouter as Router } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { BugProvider } from './context/BugContext';
+import { ProjectProvider } from './context/ProjectContext';
+import { TeamProvider } from './context/TeamContext';
 import AppRouter from './router/AppRouter';
 
 function App() {
@@ -8,7 +10,11 @@ function App() {
     <Router>
       <AuthProvider>
         <BugProvider>
-          <AppRouter />
+          <ProjectProvider>
+            <TeamProvider>
+              <AppRouter />
+            </TeamProvider>
+          </ProjectProvider>
         </BugProvider>
       </AuthProvider>
     </Router>

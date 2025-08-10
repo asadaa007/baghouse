@@ -1,6 +1,6 @@
 # 🚀 Deployment Guide - Firebase + Netlify
 
-This guide explains how to deploy Baghous using Firebase for backend services and Netlify for hosting.
+This guide explains how to deploy BugKiller using Firebase for backend services and Netlify for hosting.
 
 ## 📋 Prerequisites
 
@@ -169,4 +169,4 @@ Make sure all environment variables are set in:
 
 ---
 
-**Your Baghous application is now ready for production deployment!** 🚀 
+**Your BugKiller application is now ready for production deployment!** 🚀 

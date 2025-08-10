@@ -10,9 +10,26 @@ service cloud.firestore {
       return request.auth.uid == userId;
     }
 
-    // Users collection
+    // Role-based user collections - Allow all operations for development
+    match /admins/{userId} {
+      allow read, write: if true;
+    }
+
+    match /managers/{userId} {
+      allow read, write: if true;
+    }
+
+    match /team_leads/{userId} {
+      allow read, write: if true;
+    }
+
+    match /team_members/{userId} {
+      allow read, write: if true;
+    }
+
+    // Legacy users collection - Allow all operations for development
     match /users/{userId} {
-      allow read, write: if isAuthenticated() && isOwner(userId);
+      allow read, write: if true;
     }
 
     // Projects collection
@@ -52,6 +69,11 @@ service cloud.firestore {
 
     // Activity logs collection
     match /activity_logs/{logId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Teams collection
+    match /teams/{teamId} {
       allow read, write: if isAuthenticated();
     }
 

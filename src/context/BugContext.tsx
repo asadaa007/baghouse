@@ -67,15 +67,24 @@ export const BugProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateBug = async (id: string, updates: Partial<Bug>) => {
     try {
-      setLoading(true);
       setError(null);
+      
+      // Optimistic update - update local state immediately
+      setBugs(prevBugs => 
+        prevBugs.map(bug => 
+          bug.id === id 
+            ? { ...bug, ...updates, updatedAt: new Date() }
+            : bug
+        )
+      );
+      
+      // Update in database
       await bugService.updateBug(id, updates);
-      await refreshBugs(); // Refresh the list
     } catch (err) {
+      // Revert optimistic update on error
+      await refreshBugs();
       setError(err instanceof Error ? err.message : 'Failed to update bug');
       throw err;
-    } finally {
-      setLoading(false);
     }
   };
 

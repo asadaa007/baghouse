@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useBugs } from '../../context/BugContext';
+import { useProjects } from '../../context/ProjectContext';
 import { useAuth } from '../../context/AuthContext';
 import Button from '../common/Button';
 import Input from '../common/Input';
@@ -17,6 +18,7 @@ interface BugFormProps {
 
 const BugForm: React.FC<BugFormProps> = ({ isOpen, onClose, bug, projectId }) => {
   const { addBug, updateBug } = useBugs();
+  const { projects } = useProjects();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -27,6 +29,7 @@ const BugForm: React.FC<BugFormProps> = ({ isOpen, onClose, bug, projectId }) =>
     priority: bug?.priority || 'medium',
     status: bug?.status || 'new',
     projectId: projectId || bug?.projectId || '',
+    assignee: bug?.assignee || '',
   });
   const [attachments, setAttachments] = useState<UploadResult[]>(bug?.attachments || []);
 
@@ -35,20 +38,45 @@ const BugForm: React.FC<BugFormProps> = ({ isOpen, onClose, bug, projectId }) =>
     setLoading(true);
     setError('');
 
+    // Validate required fields
+    if (!formData.title.trim()) {
+      setError('Bug title is required');
+      setLoading(false);
+      return;
+    }
+
+    if (!formData.description.trim()) {
+      setError('Bug description is required');
+      setLoading(false);
+      return;
+    }
+
+    if (!formData.projectId) {
+      setError('Please select a project');
+      setLoading(false);
+      return;
+    }
+
     try {
       if (bug) {
         // Update existing bug
         await updateBug(bug.id, formData);
       } else {
-        // Create new bug
-        await addBug({
+        // Create new bug - handle assignee properly
+        const bugData = {
           ...formData,
           reporter: user?.id || '',
-          assignee: '',
           labels: [],
           attachments: attachments,
           comments: [],
-        });
+        };
+
+        // Only include assignee if it's not empty
+        if (formData.assignee && formData.assignee.trim()) {
+          bugData.assignee = formData.assignee.trim();
+        }
+
+        await addBug(bugData);
       }
       onClose();
     } catch (err) {
@@ -70,12 +98,14 @@ const BugForm: React.FC<BugFormProps> = ({ isOpen, onClose, bug, projectId }) =>
     setAttachments(prev => prev.filter(file => file.id !== fileId));
   };
 
+  const selectedProject = projects.find(p => p.id === formData.projectId);
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
       title={bug ? 'Edit Bug' : 'Create New Bug'}
-      size="lg"
+      size="xl"
     >
       <form onSubmit={handleSubmit} className="space-y-6">
         {error && (
@@ -84,29 +114,57 @@ const BugForm: React.FC<BugFormProps> = ({ isOpen, onClose, bug, projectId }) =>
           </div>
         )}
 
+        {/* Project Selection - Most Important */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Project <span className="text-red-500">*</span>
+          </label>
+          <select
+            value={formData.projectId}
+            onChange={(e) => handleChange('projectId', e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+            required
+          >
+            <option value="">Select a project</option>
+            {projects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+          {formData.projectId && selectedProject && (
+            <p className="text-sm text-gray-500 mt-1">
+              Project: {selectedProject.name} • {selectedProject.description}
+            </p>
+          )}
+        </div>
+
+        {/* Bug Title */}
         <Input
-          label="Title"
+          label="Bug Title"
           value={formData.title}
           onChange={(e) => handleChange('title', e.target.value)}
-          placeholder="Enter bug title"
+          placeholder="Enter a clear, descriptive title for the bug"
           required
         />
 
+        {/* Bug Description */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Description
+            Description <span className="text-red-500">*</span>
           </label>
           <textarea
             value={formData.description}
             onChange={(e) => handleChange('description', e.target.value)}
-            placeholder="Describe the bug in detail..."
+            placeholder="Describe the bug in detail. Include steps to reproduce, expected behavior, and actual behavior..."
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-            rows={4}
+            rows={5}
             required
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        {/* Priority and Status */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Priority
@@ -138,24 +196,43 @@ const BugForm: React.FC<BugFormProps> = ({ isOpen, onClose, bug, projectId }) =>
               <option value="resolved">Resolved</option>
               <option value="closed">Closed</option>
             </select>
-                     </div>
-         </div>
+          </div>
 
-         {/* File Upload */}
-         <div>
-           <label className="block text-sm font-medium text-gray-700 mb-2">
-             Attachments
-           </label>
-           <FileUpload
-             onUpload={handleFileUpload}
-             onRemove={handleFileRemove}
-             multiple={true}
-             maxSize={10}
-             acceptedTypes={['image/*', 'application/pdf', 'text/*']}
-           />
-         </div>
- 
-         <div className="flex justify-end space-x-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Assignee
+            </label>
+            <input
+              type="text"
+              value={formData.assignee}
+              onChange={(e) => handleChange('assignee', e.target.value)}
+              placeholder="Assign to team member"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+            />
+          </div>
+        </div>
+
+        {/* File Upload */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Attachments
+          </label>
+          <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+            <FileUpload
+              onUpload={handleFileUpload}
+              onRemove={handleFileRemove}
+              multiple={true}
+              maxSize={10}
+              acceptedTypes={['image/*', 'application/pdf', 'text/*']}
+            />
+          </div>
+          <p className="text-sm text-gray-500 mt-2">
+            Upload screenshots, logs, or other files to help describe the bug (max 10MB per file)
+          </p>
+        </div>
+
+        {/* Form Actions */}
+        <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
           <Button
             type="button"
             variant="outline"

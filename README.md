@@ -1,6 +1,6 @@
-# 🐛 Baghous - Bug Tracking Platform
+# 🐛 BugKiller - Bug Tracking Platform
 
-A comprehensive bug tracking and project management platform built with React, TypeScript, and Firebase. Baghous provides all the essential features of BugHerd in a modern, user-friendly interface.
+A comprehensive bug tracking and project management platform built with React, TypeScript, and Firebase. BugKiller provides all the essential features of BugHerd in a modern, user-friendly interface.
 
 ## ✨ Features
 
@@ -78,7 +78,7 @@ A comprehensive bug tracking and project management platform built with React, T
 1. **Clone the repository**
    ```bash
    git clone <repository-url>
-   cd baghous
+   cd bugkiller
    ```
 
 2. **Install dependencies**
@@ -328,7 +328,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Documentation** - Check this README and inline code comments
 - **Issues** - Create an issue on GitHub
 - **Discussions** - Use GitHub Discussions for questions
-- **Email Support** - Contact support@baghous.com
+- **Email Support** - Contact support@bugkiller.com
 
 ## 🎯 Roadmap
 

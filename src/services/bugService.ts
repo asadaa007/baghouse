@@ -5,12 +5,7 @@ import {
   getDocs, 
   getDoc, 
   updateDoc, 
-  deleteDoc, 
-  query, 
-  where, 
-  orderBy, 
-  limit, 
-  serverTimestamp 
+  deleteDoc,serverTimestamp 
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import type { Bug } from '../types/bugs';
@@ -24,8 +19,7 @@ export const bugService = {
       const docRef = await addDoc(collection(db, BUGS_COLLECTION), {
         ...bugData,
         createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
+        updatedAt: serverTimestamp()});
       return docRef.id;
     } catch (error) {
       console.error('Error creating bug:', error);
@@ -36,30 +30,26 @@ export const bugService = {
   // Get all bugs (filtered by current user)
   async getBugs(userId?: string): Promise<Bug[]> {
     try {
-      let q;
-      
-      if (userId) {
-        // Filter bugs by reporter or assignee
-        q = query(
-          collection(db, BUGS_COLLECTION),
-          where('reporter', '==', userId),
-          orderBy('createdAt', 'desc')
-        );
-      } else {
-        // Get all bugs (for admin or when user is not specified)
-        q = query(
-          collection(db, BUGS_COLLECTION),
-          orderBy('createdAt', 'desc')
-        );
-      }
-      
-      const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(doc => ({
+      // Get all bugs and filter in application layer to avoid index requirements
+      const querySnapshot = await getDocs(collection(db, BUGS_COLLECTION));
+      const allBugs = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
         createdAt: doc.data().createdAt?.toDate() || new Date(),
-        updatedAt: doc.data().updatedAt?.toDate() || new Date(),
+        updatedAt: doc.data().updatedAt?.toDate() || new Date()
       })) as Bug[];
+      
+      let filteredBugs = allBugs;
+      
+      if (userId) {
+        // Filter bugs by reporter or assignee
+        filteredBugs = allBugs.filter(bug => 
+          bug.reporter === userId || bug.assignee === userId
+        );
+      }
+      
+      // Sort by creation date (newest first)
+      return filteredBugs.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     } catch (error) {
       console.error('Error getting bugs:', error);
       // Return empty array instead of throwing error for empty collections
@@ -82,8 +72,7 @@ export const bugService = {
           id: docSnap.id,
           ...docSnap.data(),
           createdAt: docSnap.data().createdAt?.toDate() || new Date(),
-          updatedAt: docSnap.data().updatedAt?.toDate() || new Date(),
-        } as Bug;
+          updatedAt: docSnap.data().updatedAt?.toDate() || new Date()} as Bug;
       }
       return null;
     } catch (error) {
@@ -98,8 +87,7 @@ export const bugService = {
       const docRef = doc(db, BUGS_COLLECTION, id);
       await updateDoc(docRef, {
         ...updates,
-        updatedAt: serverTimestamp(),
-      });
+        updatedAt: serverTimestamp()});
     } catch (error) {
       console.error('Error updating bug:', error);
       throw new Error('Failed to update bug');
@@ -120,18 +108,20 @@ export const bugService = {
   // Get bugs by project
   async getBugsByProject(projectId: string): Promise<Bug[]> {
     try {
-      const q = query(
-        collection(db, BUGS_COLLECTION),
-        where('projectId', '==', projectId),
-        orderBy('createdAt', 'desc')
-      );
-      const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(doc => ({
+      // Get all bugs and filter by project in application layer
+      const querySnapshot = await getDocs(collection(db, BUGS_COLLECTION));
+      const allBugs = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
         createdAt: doc.data().createdAt?.toDate() || new Date(),
-        updatedAt: doc.data().updatedAt?.toDate() || new Date(),
+        updatedAt: doc.data().updatedAt?.toDate() || new Date()
       })) as Bug[];
+      
+      // Filter bugs by project
+      const projectBugs = allBugs.filter(bug => bug.projectId === projectId);
+      
+      // Sort by creation date (newest first)
+      return projectBugs.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     } catch (error) {
       console.error('Error getting bugs by project:', error);
       if (error && typeof error === 'object' && 'code' in error && error.code === 'permission-denied') {
@@ -143,34 +133,30 @@ export const bugService = {
   },
 
   // Get recent bugs
-  async getRecentBugs(limitCount: number = 10, userId?: string): Promise<Bug[]> {
+  async getRecentBugs(count: number = 10, userId?: string): Promise<Bug[]> {
     try {
-      let q;
-      
-      if (userId) {
-        // Filter by user
-        q = query(
-          collection(db, BUGS_COLLECTION),
-          where('reporter', '==', userId),
-          orderBy('createdAt', 'desc'),
-          limit(limitCount)
-        );
-      } else {
-        // Get all recent bugs
-        q = query(
-          collection(db, BUGS_COLLECTION),
-          orderBy('createdAt', 'desc'),
-          limit(limitCount)
-        );
-      }
-      
-      const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(doc => ({
+      // Get all bugs and filter in application layer
+      const querySnapshot = await getDocs(collection(db, BUGS_COLLECTION));
+      const allBugs = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
         createdAt: doc.data().createdAt?.toDate() || new Date(),
-        updatedAt: doc.data().updatedAt?.toDate() || new Date(),
+        updatedAt: doc.data().updatedAt?.toDate() || new Date()
       })) as Bug[];
+      
+      let filteredBugs = allBugs;
+      
+      if (userId) {
+        // Filter bugs by reporter or assignee
+        filteredBugs = allBugs.filter(bug => 
+          bug.reporter === userId || bug.assignee === userId
+        );
+      }
+      
+      // Sort by creation date (newest first) and return filtered bugs
+      return filteredBugs
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+        .slice(0, count);
     } catch (error) {
       console.error('Error getting recent bugs:', error);
       if (error && typeof error === 'object' && 'code' in error && error.code === 'permission-denied') {
@@ -179,5 +165,5 @@ export const bugService = {
       }
       throw new Error('Failed to get recent bugs');
     }
-  },
+  }
 }; 

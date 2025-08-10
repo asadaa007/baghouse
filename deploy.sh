@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Baghous Firebase + Netlify Deployment Script
+# BugKiller Firebase + Netlify Deployment Script
 
-echo "🚀 Starting Baghous deployment..."
+echo "🚀 Starting BugKiller deployment..."
 
 # Check if Firebase CLI is installed
 if ! command -v firebase &> /dev/null; then
@@ -75,5 +75,5 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "🎉 Deployment completed successfully!"
-echo "Your Baghous application is now live on Netlify!"
+echo "Your BugKiller application is now live on Netlify!"
 echo "Firebase services (Firestore & Storage) are also deployed and ready." 

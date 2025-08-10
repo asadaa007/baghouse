@@ -3,15 +3,19 @@ export interface Project {
   name: string;
   description: string;
   owner: string;
+  ownerName?: string;
   members: ProjectMember[];
   settings: ProjectSettings;
+  status: 'active' | 'inactive' | 'on_hold' | 'discontinued' | 'complete';
+  statusReason?: string | null;
+  teamId?: string; // Assigned team
   createdAt: Date;
   updatedAt: Date;
 }
 
 export interface ProjectMember {
   userId: string;
-  role: 'owner' | 'admin' | 'member' | 'viewer';
+  role: 'owner' | 'manager' | 'team_lead' | 'admin' | 'member' | 'viewer';
   joinedAt: Date;
 }
 

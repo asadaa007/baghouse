@@ -5,13 +5,17 @@ export interface Bug {
   status: BugStatus;
   priority: BugPriority;
   assignee?: string;
+  assigneeName?: string;
   reporter: string;
+  reporterName?: string;
   projectId: string;
+  projectName?: string;
   labels: string[];
   attachments: Attachment[];
   comments: Comment[];
   createdAt: Date;
   updatedAt: Date;
+  resolvedAt?: Date;
 }
 
 export type BugStatus = 'new' | 'in-progress' | 'review' | 'resolved' | 'closed';
@@ -30,6 +34,8 @@ export interface Comment {
   id: string;
   content: string;
   author: string;
+  userId: string;
+  userName?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -39,6 +45,7 @@ export interface BugFilters {
   priority?: BugPriority[];
   assignee?: string;
   labels?: string[];
+  projectId?: string;
   dateRange?: {
     start: Date;
     end: Date;
