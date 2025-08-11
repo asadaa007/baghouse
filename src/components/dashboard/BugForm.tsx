@@ -1,13 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useBugs } from '../../context/BugContext';
 import { useProjects } from '../../context/ProjectContext';
 import { useAuth } from '../../context/AuthContext';
+import { useTeams } from '../../context/TeamContext';
 import Button from '../common/Button';
 import Input from '../common/Input';
 import Modal from '../common/Modal';
 import FileUpload from '../common/FileUpload';
-import type { Bug } from '../../types/bugs';
+import { getAllUsers } from '../../services/userService';
+import type { Bug, BugStatus, BugPriority } from '../../types/bugs';
 import type { UploadResult } from '../../services/cloudinaryService';
+import type { AppUser } from '../../types/auth';
 
 interface BugFormProps {
   isOpen: boolean;
@@ -20,18 +23,22 @@ const BugForm: React.FC<BugFormProps> = ({ isOpen, onClose, bug, projectId }) =>
   const { addBug, updateBug } = useBugs();
   const { projects } = useProjects();
   const { user } = useAuth();
+  const { teams } = useTeams();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [allUsers, setAllUsers] = useState<AppUser[]>([]);
+  const [teamMembers, setTeamMembers] = useState<AppUser[]>([]);
 
   const [formData, setFormData] = useState({
-    title: bug?.title || '',
-    description: bug?.description || '',
-    priority: bug?.priority || 'medium',
-    status: bug?.status || 'new',
-    projectId: projectId || bug?.projectId || '',
-    assignee: bug?.assignee || '',
+    title: '',
+    description: '',
+    priority: 'medium' as BugPriority,
+    status: 'new' as BugStatus,
+    projectId: projectId || '',
+    assignee: '',
+    externalAssignee: '',
   });
-  const [attachments, setAttachments] = useState<UploadResult[]>(bug?.attachments || []);
+  const [attachments, setAttachments] = useState<UploadResult[]>([]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,6 +83,11 @@ const BugForm: React.FC<BugFormProps> = ({ isOpen, onClose, bug, projectId }) =>
           bugData.assignee = formData.assignee.trim();
         }
 
+        // Only include external assignee if it's not empty
+        if (formData.externalAssignee && formData.externalAssignee.trim()) {
+          bugData.externalAssignee = formData.externalAssignee.trim();
+        }
+
         await addBug(bugData);
       }
       onClose();
@@ -87,7 +99,12 @@ const BugForm: React.FC<BugFormProps> = ({ isOpen, onClose, bug, projectId }) =>
   };
 
   const handleChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData(prev => ({ 
+      ...prev, 
+      [field]: field === 'priority' ? value as BugPriority : 
+               field === 'status' ? value as BugStatus : 
+               value 
+    }));
   };
 
   const handleFileUpload = (file: UploadResult) => {
@@ -97,6 +114,71 @@ const BugForm: React.FC<BugFormProps> = ({ isOpen, onClose, bug, projectId }) =>
   const handleFileRemove = (fileId: string) => {
     setAttachments(prev => prev.filter(file => file.id !== fileId));
   };
+
+  // Load all users for external assignee selection
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        const users = await getAllUsers();
+        setAllUsers(users);
+      } catch (error) {
+        console.error('Error loading users:', error);
+      }
+    };
+    loadUsers();
+  }, []);
+
+  // Update form data when bug prop changes (for edit mode)
+  useEffect(() => {
+    if (bug) {
+      setFormData({
+        title: bug.title || '',
+        description: bug.description || '',
+        priority: bug.priority || 'medium' as BugPriority,
+        status: bug.status || 'new' as BugStatus,
+        projectId: bug.projectId || '',
+        assignee: bug.assignee || '',
+        externalAssignee: bug.externalAssignee || '',
+      });
+      setAttachments(bug.attachments || []);
+    } else {
+      // Reset form for new bug
+      setFormData({
+        title: '',
+        description: '',
+        priority: 'medium' as BugPriority,
+        status: 'new' as BugStatus,
+        projectId: projectId || '',
+        assignee: '',
+        externalAssignee: '',
+      });
+      setAttachments([]);
+    }
+  }, [bug, projectId]);
+
+  // Load team members when project changes
+  useEffect(() => {
+    if (formData.projectId && user) {
+      const selectedProject = projects.find(p => p.id === formData.projectId);
+      
+      if (selectedProject?.teamId) {
+        const team = teams.find(t => t.id === selectedProject.teamId);
+        
+        if (team?.members) {
+          const members = allUsers.filter(member => 
+            team.members.includes(member.id) && member.role === 'team_member'
+          );
+          setTeamMembers(members);
+        } else {
+          setTeamMembers([]);
+        }
+      } else {
+        setTeamMembers([]);
+      }
+    } else {
+      setTeamMembers([]);
+    }
+  }, [formData.projectId, teams, allUsers, user, bug]);
 
   const selectedProject = projects.find(p => p.id === formData.projectId);
 
@@ -200,16 +282,48 @@ const BugForm: React.FC<BugFormProps> = ({ isOpen, onClose, bug, projectId }) =>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Assignee
+              Team Assignee
             </label>
-            <input
-              type="text"
+            <select
               value={formData.assignee}
               onChange={(e) => handleChange('assignee', e.target.value)}
-              placeholder="Assign to team member"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-            />
+            >
+              <option value="">Select team member</option>
+              {teamMembers.map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.name} ({member.email})
+                </option>
+              ))}
+            </select>
+            {teamMembers.length === 0 && formData.projectId && (
+              <p className="text-sm text-gray-500 mt-1">
+                No team members available for this project
+              </p>
+            )}
           </div>
+        </div>
+
+        {/* External Assignee */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            External Assignee (Optional)
+          </label>
+          <select
+            value={formData.externalAssignee}
+            onChange={(e) => handleChange('externalAssignee', e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+          >
+            <option value="">Select external team member</option>
+            {allUsers.filter(u => u.role === 'team_member' && u.teamId !== selectedProject?.teamId).map((user) => (
+              <option key={user.id} value={user.id}>
+                {user.name} ({user.email}) - {user.teamId ? 'Team: ' + (teams.find(t => t.id === user.teamId)?.name || 'Unknown') : 'No Team'}
+              </option>
+            ))}
+          </select>
+          <p className="text-sm text-gray-500 mt-1">
+            Assign to team members from other teams (not from the selected project's team)
+          </p>
         </div>
 
         {/* File Upload */}

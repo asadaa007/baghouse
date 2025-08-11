@@ -1,3 +1,5 @@
+import type { Bug } from './bugs';
+
 export interface Project {
   id: string;
   name: string;
@@ -9,6 +11,7 @@ export interface Project {
   status: 'active' | 'inactive' | 'on_hold' | 'discontinued' | 'complete';
   statusReason?: string | null;
   teamId?: string; // Assigned team
+  bugs?: Bug[]; // Array of bugs for this project
   createdAt: Date;
   updatedAt: Date;
 }

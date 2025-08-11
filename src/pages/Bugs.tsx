@@ -4,10 +4,11 @@ import Navigation from '../components/layout/Navigation';
 import BugForm from '../components/dashboard/BugForm';
 import BugFilters from '../components/bugs/BugFilters';
 import BugTable from '../components/bugs/BugTable';
+import BugViewModal from '../components/bugs/BugViewModal';
 import Breadcrumb from '../components/common/Breadcrumb';
 import Loading from '../components/common/Loading';
 import { Plus, Download, Upload, RefreshCw } from 'lucide-react';
-import type { BugFilters as BugFiltersType, BugStatus, BugPriority } from '../types/bugs';
+import type { BugFilters as BugFiltersType, BugStatus, BugPriority, Bug } from '../types/bugs';
 
 const Bugs = () => {
   const { bugs, loading, updateBug, deleteBug, refreshBugs } = useBugs();
@@ -15,7 +16,10 @@ const Bugs = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState<BugFiltersType>({});
   const [isBugFormOpen, setIsBugFormOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<'table' | 'kanban'>('table');
+  const [viewModalOpen, setViewModalOpen] = useState(false);
+  const [selectedBug, setSelectedBug] = useState<Bug | null>(null);
+  const [editingBug, setEditingBug] = useState<Bug | null>(null);
+
 
   // Filter bugs based on search and filters
   const filteredBugs = bugs.filter(bug => {
@@ -69,14 +73,6 @@ const Bugs = () => {
     }
   };
 
-  const handleAssigneeChange = async (bugId: string, assignee: string) => {
-    try {
-      await updateBug(bugId, { assignee: assignee || undefined });
-    } catch (error) {
-      console.error('Error updating bug assignee:', error);
-    }
-  };
-
   const handleDeleteBug = async (bugId: string) => {
     if (!confirm('Are you sure you want to delete this bug? This action cannot be undone.')) {
       return;
@@ -115,6 +111,11 @@ const Bugs = () => {
 
   const handleRefresh = () => {
     refreshBugs();
+  };
+
+  const handleEditBug = (bug: Bug) => {
+    setEditingBug(bug);
+    setIsBugFormOpen(true);
   };
 
   if (loading) {
@@ -193,65 +194,23 @@ const Bugs = () => {
           filteredCount={filteredBugs.length}
         />
 
-        {/* View Mode Toggle */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={() => setViewMode('table')}
-              className={`px-3 py-1 text-sm rounded-lg transition-colors ${
-                viewMode === 'table'
-                  ? 'bg-primary text-white'
-                  : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-              }`}
-            >
-              Table View
-            </button>
-            <button
-              onClick={() => setViewMode('kanban')}
-              className={`px-3 py-1 text-sm rounded-lg transition-colors ${
-                viewMode === 'kanban'
-                  ? 'bg-primary text-white'
-                  : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-              }`}
-            >
-              Kanban View
-            </button>
-          </div>
-          
+        {/* Bugs Count */}
+        <div className="flex items-center justify-end mb-4">
           <div className="text-sm text-gray-600">
             Showing {filteredBugs.length} of {bugs.length} bugs
           </div>
         </div>
 
         {/* Bugs Table */}
-        {viewMode === 'table' && (
-          <BugTable
-            bugs={filteredBugs}
-            onDeleteBug={handleDeleteBug}
-            onBulkDelete={handleBulkDelete}
-            onStatusChange={handleStatusChange}
-            onPriorityChange={handlePriorityChange}
-            onAssigneeChange={handleAssigneeChange}
-            loading={loading}
-          />
-        )}
-
-        {/* Kanban View - Placeholder */}
-        {viewMode === 'kanban' && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <div className="w-8 h-8 bg-gray-300 rounded"></div>
-            </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Kanban View</h3>
-            <p className="text-gray-600 mb-4">Kanban board view coming soon!</p>
-            <button
-              onClick={() => setViewMode('table')}
-              className="text-sm text-primary hover:text-primary/80 font-medium"
-            >
-              Switch to Table View
-            </button>
-          </div>
-        )}
+        <BugTable
+          bugs={filteredBugs}
+          onDeleteBug={handleDeleteBug}
+          onBulkDelete={handleBulkDelete}
+          onStatusChange={handleStatusChange}
+          onPriorityChange={handlePriorityChange}
+          onEditBug={handleEditBug}
+          loading={loading}
+        />
 
         {/* Empty State */}
         {filteredBugs.length === 0 && bugs.length === 0 && (
@@ -274,13 +233,29 @@ const Bugs = () => {
         )}
       </div>
 
-      {/* Bug Form Modal */}
-      <BugForm
-        isOpen={isBugFormOpen}
-        onClose={() => setIsBugFormOpen(false)}
-      />
-    </div>
-  );
-};
+              {/* Bug Form Modal */}
+        <BugForm
+          isOpen={isBugFormOpen}
+          onClose={() => {
+            setIsBugFormOpen(false);
+            setEditingBug(null);
+          }}
+          bug={editingBug}
+        />
+
+        {/* Bug View Modal */}
+        <BugViewModal
+          isOpen={viewModalOpen}
+          onClose={() => {
+            setViewModalOpen(false);
+            setSelectedBug(null);
+          }}
+          bug={selectedBug}
+          onEdit={handleEditBug}
+          onDelete={handleDeleteBug}
+        />
+      </div>
+    );
+  };
 
 export default Bugs; 

@@ -38,7 +38,7 @@ export const BugProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       setLoading(true);
       setError(null);
-      const fetchedBugs = await bugService.getBugs(user.id);
+      const fetchedBugs = await bugService.getBugs(user);
       setBugs(fetchedBugs);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch bugs');

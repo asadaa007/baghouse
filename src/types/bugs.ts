@@ -1,11 +1,14 @@
 export interface Bug {
   id: string;
+  customId?: string;
   title: string;
   description: string;
   status: BugStatus;
   priority: BugPriority;
   assignee?: string;
   assigneeName?: string;
+  externalAssignee?: string;
+  externalAssigneeName?: string;
   reporter: string;
   reporterName?: string;
   projectId: string;
