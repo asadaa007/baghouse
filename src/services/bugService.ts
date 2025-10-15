@@ -12,6 +12,7 @@ import {
 import { db } from '../firebase/config';
 import type { Bug } from '../types/bugs';
 import type { AppUser } from '../types/auth';
+import { activityService } from './activityService';
 
 
 
@@ -30,21 +31,25 @@ const generateProjectBugId = async (projectId: string): Promise<string> => {
     const projectData = projectDoc.data();
     const existingBugs = projectData.bugs || [];
     
-         // Find the highest bug number
-     let maxBugNumber = 0;
-     existingBugs.forEach((bug: Bug) => {
-       const bugNumber = parseInt(bug.customId || '0');
-       if (bugNumber > maxBugNumber) {
-         maxBugNumber = bugNumber;
-       }
-     });
+    // Find the highest bug number from existing bugs
+    let maxBugNumber = 0;
+    existingBugs.forEach((bug: Bug) => {
+      // Extract number from ID format like "#1", "#2", etc.
+      const idMatch = bug.id?.match(/#(\d+)$/);
+      if (idMatch) {
+        const bugNumber = parseInt(idMatch[1]);
+        if (bugNumber > maxBugNumber) {
+          maxBugNumber = bugNumber;
+        }
+      }
+    });
     
-    // Return next bug number
-    return (maxBugNumber + 1).toString();
+    // Return next bug number with # prefix
+    return `#${maxBugNumber + 1}`;
   } catch (error) {
     console.error('Error generating project bug ID:', error);
     // Fallback to timestamp-based ID
-    return Date.now().toString();
+    return `#${Date.now()}`;
   }
 };
 
@@ -81,13 +86,19 @@ export const bugService = {
         }
       }
       
+      // Get project name for the bug
+      const projectDoc = await getDoc(doc(db, PROJECTS_COLLECTION, bugData.projectId));
+      const projectData = projectDoc.data();
+      const projectName = projectData?.name || 'Unknown Project';
+      
       // Create the bug object
       const newBug = {
-        id: `${bugData.projectId}_${Date.now()}`, // Unique ID for the bug
-        customId,
+        id: customId, // Use the sequential ID as the main ID
+        customId, // Keep customId for backward compatibility
         ...bugData,
         assigneeName,
         externalAssigneeName,
+        projectName,
         createdAt: new Date(),
         updatedAt: new Date()
       };
@@ -98,6 +109,17 @@ export const bugService = {
         bugs: arrayUnion(newBug),
         updatedAt: serverTimestamp()
       });
+      
+      // Log activity
+      try {
+        const user = bugData.userId ? { id: bugData.userId, name: bugData.userName } : { id: bugData.reporter, name: bugData.reporterName };
+        
+        await activityService.logActivity(
+          activityService.createBugActivity.created(newBug, user)
+        );
+      } catch (error) {
+        console.error('Could not log bug creation activity:', error);
+      }
       
       return newBug.id;
     } catch (error) {
@@ -128,6 +150,8 @@ export const bugService = {
               if (projectData.bugs && Array.isArray(projectData.bugs)) {
                 const projectBugs = projectData.bugs.map((bug: any) => ({
                   ...bug,
+                  projectId: projectDoc.id, // Ensure projectId is set
+                  projectName: projectData.name || 'Unknown Project', // Add project name
                   createdAt: bug.createdAt && typeof bug.createdAt.toDate === 'function' ? bug.createdAt.toDate() : new Date(),
                   updatedAt: bug.updatedAt && typeof bug.updatedAt.toDate === 'function' ? bug.updatedAt.toDate() : new Date()
                 }));
@@ -145,6 +169,8 @@ export const bugService = {
             if (projectData.bugs && Array.isArray(projectData.bugs)) {
               const projectBugs = projectData.bugs.map((bug: any) => ({
                 ...bug,
+                projectId: projectDoc.id, // Ensure projectId is set
+                projectName: projectData.name || 'Unknown Project', // Add project name
                 createdAt: bug.createdAt && typeof bug.createdAt.toDate === 'function' ? bug.createdAt.toDate() : new Date(),
                 updatedAt: bug.updatedAt && typeof bug.updatedAt.toDate === 'function' ? bug.updatedAt.toDate() : new Date()
               }));
@@ -154,8 +180,13 @@ export const bugService = {
         }
       }
       
+      // Remove duplicates based on bug ID and project ID combination
+      const uniqueBugs = allBugs.filter((bug, index, self) => 
+        index === self.findIndex(b => b.id === bug.id && b.projectId === bug.projectId)
+      );
+      
       // Sort by creation date (newest first)
-      return allBugs.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      return uniqueBugs.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     } catch (error) {
       console.error('Error getting bugs:', error);
       if (error && typeof error === 'object' && 'code' in error && error.code === 'permission-denied') {
@@ -167,12 +198,33 @@ export const bugService = {
   },
 
   // Get bug by ID
-  async getBugById(id: string): Promise<Bug | null> {
+  async getBugById(id: string, projectId?: string): Promise<Bug | null> {
     try {
-      // Extract project ID from bug ID (format: projectId_timestamp)
-      const projectId = id.split('_')[0];
+      let targetProjectId = projectId;
       
-      const projectDoc = await getDoc(doc(db, PROJECTS_COLLECTION, projectId));
+      // If no projectId provided, we need to search through all projects
+      if (!targetProjectId) {
+        const projectsSnapshot = await getDocs(collection(db, PROJECTS_COLLECTION));
+        
+        for (const projectDoc of projectsSnapshot.docs) {
+          const projectData = projectDoc.data();
+          const bugs = projectData.bugs || [];
+          
+          const bug = bugs.find((b: any) => b.id === id);
+          if (bug) {
+            return {
+              ...bug,
+              createdAt: bug.createdAt?.toDate() || new Date(),
+              updatedAt: bug.updatedAt?.toDate() || new Date()
+            } as Bug;
+          }
+        }
+        
+        return null;
+      }
+      
+      // If projectId is provided, search in that specific project
+      const projectDoc = await getDoc(doc(db, PROJECTS_COLLECTION, targetProjectId));
       
       if (!projectDoc.exists()) {
         return null;
@@ -199,10 +251,29 @@ export const bugService = {
   },
 
   // Update bug
-  async updateBug(id: string, updates: Partial<Bug>): Promise<void> {
+  async updateBug(id: string, updates: Partial<Bug>, projectId?: string): Promise<void> {
     try {
-      // Extract project ID from bug ID
-      const projectId = id.split('_')[0];
+      let targetProjectId = projectId;
+      
+      // If no projectId provided, we need to find it by searching through all projects
+      if (!targetProjectId) {
+        const projectsSnapshot = await getDocs(collection(db, PROJECTS_COLLECTION));
+        
+        for (const projectDoc of projectsSnapshot.docs) {
+          const projectData = projectDoc.data();
+          const bugs = projectData.bugs || [];
+          
+          const bug = bugs.find((b: any) => b.id === id);
+          if (bug) {
+            targetProjectId = projectDoc.id;
+            break;
+          }
+        }
+        
+        if (!targetProjectId) {
+          throw new Error('Bug not found in any project');
+        }
+      }
       
       // Get assignee names if assignee IDs are provided
       let assigneeName = updates.assigneeName;
@@ -231,7 +302,7 @@ export const bugService = {
       }
       
       // Get the project document
-      const projectRef = doc(db, PROJECTS_COLLECTION, projectId);
+      const projectRef = doc(db, PROJECTS_COLLECTION, targetProjectId);
       const projectDoc = await getDoc(projectRef);
       
       if (!projectDoc.exists()) {
@@ -241,25 +312,132 @@ export const bugService = {
       const projectData = projectDoc.data();
       const bugs = projectData.bugs || [];
       
-             // Find and update the specific bug
-       const updatedBugs = bugs.map((bug: any) => {
-         if (bug.id === id) {
-           return {
-             ...bug,
-             ...updates,
-             ...(assigneeName && { assigneeName }),
-             ...(externalAssigneeName && { externalAssigneeName }),
-             updatedAt: new Date()
-           };
-         }
-         return bug;
-       });
+      // Find the current bug to track changes
+      const currentBug = bugs.find((b: any) => b.id === id);
+      if (!currentBug) {
+        throw new Error('Bug not found');
+      }
+      
+      // Create history entries for changes
+      const historyEntries: any[] = [];
+      const now = new Date();
+      
+      // Track status changes
+      if (updates.status && updates.status !== currentBug.status) {
+        historyEntries.push({
+          id: `history-${Date.now()}-${Math.random()}`,
+          action: 'Status changed',
+          field: 'status',
+          oldValue: currentBug.status,
+          newValue: updates.status,
+          userId: updates.userId || 'system',
+          userName: updates.userName || 'System',
+          createdAt: now
+        });
+      }
+      
+      // Track priority changes
+      if (updates.priority && updates.priority !== currentBug.priority) {
+        historyEntries.push({
+          id: `history-${Date.now()}-${Math.random()}`,
+          action: 'Priority changed',
+          field: 'priority',
+          oldValue: currentBug.priority,
+          newValue: updates.priority,
+          userId: updates.userId || 'system',
+          userName: updates.userName || 'System',
+          createdAt: now
+        });
+      }
+      
+      // Track assignee changes
+      if (updates.assignee && updates.assignee !== currentBug.assignee) {
+        historyEntries.push({
+          id: `history-${Date.now()}-${Math.random()}`,
+          action: 'Assignee changed',
+          field: 'assignee',
+          oldValue: currentBug.assigneeName || currentBug.assignee,
+          newValue: assigneeName || updates.assignee,
+          userId: updates.userId || 'system',
+          userName: updates.userName || 'System',
+          createdAt: now
+        });
+      }
+      
+      // Track title changes
+      if (updates.title && updates.title !== currentBug.title) {
+        historyEntries.push({
+          id: `history-${Date.now()}-${Math.random()}`,
+          action: 'Title changed',
+          field: 'title',
+          oldValue: currentBug.title,
+          newValue: updates.title,
+          userId: updates.userId || 'system',
+          userName: updates.userName || 'System',
+          createdAt: now
+        });
+      }
+      
+      // Track description changes
+      if (updates.description && updates.description !== currentBug.description) {
+        historyEntries.push({
+          id: `history-${Date.now()}-${Math.random()}`,
+          action: 'Description changed',
+          field: 'description',
+          oldValue: currentBug.description.substring(0, 50) + '...',
+          newValue: updates.description.substring(0, 50) + '...',
+          userId: updates.userId || 'system',
+          userName: updates.userName || 'System',
+          createdAt: now
+        });
+      }
+      
+      // Find and update the specific bug
+      const updatedBugs = bugs.map((bug: any) => {
+        if (bug.id === id) {
+          const existingHistory = bug.history || [];
+          return {
+            ...bug,
+            ...updates,
+            ...(assigneeName && { assigneeName }),
+            ...(externalAssigneeName && { externalAssigneeName }),
+            history: [...existingHistory, ...historyEntries],
+            updatedAt: now
+          };
+        }
+        return bug;
+      });
       
       // Update the project document
       await updateDoc(projectRef, {
         bugs: updatedBugs,
         updatedAt: serverTimestamp()
       });
+      
+      // Log activity for significant changes
+      try {
+        const updatedBug = updatedBugs.find((bug: any) => bug.id === id);
+        if (updatedBug && updates.userId) {
+          const user = { id: updates.userId, name: updates.userName || 'Unknown' };
+          
+          // Log different types of activities based on what was updated
+          if (updates.status === 'resolved') {
+            await activityService.logActivity(
+              activityService.createBugActivity.resolved(updatedBug, user)
+            );
+          } else if (updates.status === 'closed') {
+            await activityService.logActivity(
+              activityService.createBugActivity.closed(updatedBug, user)
+            );
+          } else if (updates.status || updates.priority || updates.assignee || updates.title || updates.description) {
+            await activityService.logActivity(
+              activityService.createBugActivity.updated(updatedBug, user, updates)
+            );
+          }
+        }
+      } catch (error) {
+        console.warn('Could not log bug update activity:', error);
+      }
     } catch (error) {
       console.error('Error updating bug:', error);
       throw new Error('Failed to update bug');
@@ -267,13 +445,32 @@ export const bugService = {
   },
 
   // Delete bug
-  async deleteBug(id: string): Promise<void> {
+  async deleteBug(id: string, projectId?: string): Promise<void> {
     try {
-      // Extract project ID from bug ID
-      const projectId = id.split('_')[0];
+      let targetProjectId = projectId;
+      
+      // If no projectId provided, we need to find it by searching through all projects
+      if (!targetProjectId) {
+        const projectsSnapshot = await getDocs(collection(db, PROJECTS_COLLECTION));
+        
+        for (const projectDoc of projectsSnapshot.docs) {
+          const projectData = projectDoc.data();
+          const bugs = projectData.bugs || [];
+          
+          const bug = bugs.find((b: any) => b.id === id);
+          if (bug) {
+            targetProjectId = projectDoc.id;
+            break;
+          }
+        }
+        
+        if (!targetProjectId) {
+          throw new Error('Bug not found in any project');
+        }
+      }
       
       // Get the project document
-      const projectRef = doc(db, PROJECTS_COLLECTION, projectId);
+      const projectRef = doc(db, PROJECTS_COLLECTION, targetProjectId);
       const projectDoc = await getDoc(projectRef);
       
       if (!projectDoc.exists()) {

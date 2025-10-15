@@ -1,27 +1,36 @@
-import React, { useState } from 'react';
-import { Search, Filter, X, ChevronDown, Calendar, User, Tag } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Search, Filter, X, ChevronDown, User } from 'lucide-react';
+import { Button } from '../common/buttons';
 import type { BugFilters as BugFiltersType } from '../../types/bugs';
+import { getAllUsers } from '../../services/userService';
+import type { AppUser } from '../../types/auth';
 
 interface BugFiltersProps {
   filters: BugFiltersType;
   onFiltersChange: (filters: BugFiltersType) => void;
   onSearchChange: (search: string) => void;
+  onClearFilters?: () => void;
   searchTerm: string;
-  totalBugs: number;
-  filteredCount: number;
+  projects?: Array<{ id: string; name: string }>;
 }
 
 const BugFilters: React.FC<BugFiltersProps> = ({
   filters,
   onFiltersChange,
   onSearchChange,
+  onClearFilters,
   searchTerm,
-  totalBugs,
-  filteredCount
+  projects = []
 }) => {
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [teamMembers, setTeamMembers] = useState<AppUser[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [assigneeSearch, setAssigneeSearch] = useState('');
+  const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false);
+  const [filteredMembers, setFilteredMembers] = useState<AppUser[]>([]);
+  const assigneeDropdownRef = useRef<HTMLDivElement>(null);
 
-  const handleFilterChange = (key: keyof BugFiltersType, value: any) => {
+  const handleFilterChange = (key: keyof BugFiltersType, value: string | string[] | { start?: Date; end?: Date } | undefined) => {
     onFiltersChange({
       ...filters,
       [key]: value
@@ -29,232 +38,291 @@ const BugFilters: React.FC<BugFiltersProps> = ({
   };
 
   const clearAllFilters = () => {
-    onFiltersChange({});
-    onSearchChange('');
+    if (onClearFilters) {
+      onClearFilters();
+    } else {
+      // Fallback to old behavior
+      onFiltersChange({});
+      onSearchChange('');
+    }
   };
 
   const hasActiveFilters = Object.keys(filters).length > 0 || searchTerm.length > 0;
 
+  // Load team members for assignee dropdown
+  useEffect(() => {
+    const loadTeamMembers = async () => {
+      try {
+        setLoadingMembers(true);
+        const users = await getAllUsers();
+        // Filter to get team members (exclude super_admin)
+        const members = users.filter(user => user.role !== 'super_admin');
+        setTeamMembers(members);
+        setFilteredMembers(members);
+      } catch (error) {
+        console.error('Error loading team members:', error);
+      } finally {
+        setLoadingMembers(false);
+      }
+    };
+
+    loadTeamMembers();
+  }, []);
+
+  // Filter members based on search
+  useEffect(() => {
+    if (assigneeSearch.trim()) {
+      const filtered = teamMembers.filter(member =>
+        member.name.toLowerCase().includes(assigneeSearch.toLowerCase()) ||
+        member.email.toLowerCase().includes(assigneeSearch.toLowerCase())
+      );
+      setFilteredMembers(filtered);
+      setShowAssigneeDropdown(true);
+    } else {
+      setFilteredMembers(teamMembers);
+      setShowAssigneeDropdown(false);
+    }
+  }, [assigneeSearch, teamMembers]);
+
+  // Initialize assignee search from current filter
+  useEffect(() => {
+    if (filters.assignee) {
+      const selectedMember = teamMembers.find(member => member.id === filters.assignee);
+      if (selectedMember) {
+        setAssigneeSearch(selectedMember.name);
+      }
+    } else {
+      setAssigneeSearch('');
+    }
+  }, [filters.assignee, teamMembers]);
+
+  const handleAssigneeSelect = (member: AppUser) => {
+    setAssigneeSearch(member.name);
+    handleFilterChange('assignee', member.id);
+    setShowAssigneeDropdown(false);
+  };
+
+  const handleAssigneeSearchChange = (value: string) => {
+    setAssigneeSearch(value);
+    if (!value.trim()) {
+      handleFilterChange('assignee', undefined);
+      setShowAssigneeDropdown(false);
+    }
+  };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (assigneeDropdownRef.current && !assigneeDropdownRef.current.contains(event.target as Node)) {
+        setShowAssigneeDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-      {/* Search and Basic Filters */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
-        <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
-          {/* Search */}
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <input
-              type="text"
-              placeholder="Search bugs by title, description, or ID..."
-              value={searchTerm}
-              onChange={(e) => onSearchChange(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-            />
-          </div>
+    <div className="bg-white rounded-lg border border-gray-200 mb-4 p-3">
+      {/* Line 1: Search + Quick Filters */}
+      <div className="flex gap-3 mb-3">
+        {/* Search */}
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+          <input
+            type="text"
+            placeholder="Search bugs..."
+            value={searchTerm}
+            onChange={(e) => onSearchChange(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+          />
+        </div>
+        
+        {/* Quick Filters */}
+        <select
+          value={filters.status?.[0] || 'all'}
+          onChange={(e) => {
+            const value = e.target.value;
+            handleFilterChange('status', value === 'all' ? undefined : [value]);
+          }}
+          className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm w-32"
+        >
+          <option value="all">All Status</option>
+          <option value="new">New</option>
+          <option value="in-progress">In Progress</option>
+          <option value="review">Review</option>
+          <option value="resolved">Resolved</option>
+          <option value="closed">Closed</option>
+        </select>
 
-          {/* Status Filter */}
-          <select
-            value={filters.status?.[0] || 'all'}
-            onChange={(e) => {
-              const value = e.target.value;
-              handleFilterChange('status', value === 'all' ? undefined : [value]);
-            }}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-          >
-            <option value="all">All Status</option>
-            <option value="new">New</option>
-            <option value="in-progress">In Progress</option>
-            <option value="review">Review</option>
-            <option value="resolved">Resolved</option>
-            <option value="closed">Closed</option>
-          </select>
+        <select
+          value={filters.priority?.[0] || 'all'}
+          onChange={(e) => {
+            const value = e.target.value;
+            handleFilterChange('priority', value === 'all' ? undefined : [value]);
+          }}
+          className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm w-32"
+        >
+          <option value="all">All Priority</option>
+          <option value="critical">Critical</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
 
-          {/* Priority Filter */}
-          <select
-            value={filters.priority?.[0] || 'all'}
-            onChange={(e) => {
-              const value = e.target.value;
-              handleFilterChange('priority', value === 'all' ? undefined : [value]);
-            }}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-          >
-            <option value="all">All Priority</option>
-            <option value="critical">Critical</option>
-            <option value="high">High</option>
-            <option value="medium">Medium</option>
-            <option value="low">Low</option>
-          </select>
+        <div className="relative w-32" ref={assigneeDropdownRef}>
+          <input
+            type="text"
+            placeholder="Assignee..."
+            value={assigneeSearch}
+            onChange={(e) => handleAssigneeSearchChange(e.target.value)}
+            onFocus={() => setShowAssigneeDropdown(true)}
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            disabled={loadingMembers}
+          />
+          {showAssigneeDropdown && filteredMembers.length > 0 && (
+            <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+              {filteredMembers.map(member => (
+                <button
+                  key={member.id}
+                  onClick={() => handleAssigneeSelect(member)}
+                  className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm flex items-center space-x-2"
+                >
+                  <User className="w-4 h-4 text-gray-400" />
+                  <div>
+                    <div className="font-medium">{member.name}</div>
+                    <div className="text-xs text-gray-500">{member.email}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Results Count and Advanced Filters */}
-        <div className="flex items-center space-x-4">
-          <div className="text-sm text-gray-600">
-            {filteredCount} of {totalBugs} bugs
-          </div>
-          
-          <button
-            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-            className="flex items-center px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            <Filter className="w-4 h-4 mr-2" />
-            Advanced
-            <ChevronDown className={`w-4 h-4 ml-2 transition-transform ${showAdvancedFilters ? 'rotate-180' : ''}`} />
-          </button>
+        <select
+          value={filters.projectName || 'all'}
+          onChange={(e) => {
+            const value = e.target.value;
+            handleFilterChange('projectName', value === 'all' ? undefined : value);
+          }}
+          className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm w-32"
+        >
+          <option value="all">All Projects</option>
+          {projects.map(project => (
+            <option key={project.id} value={project.name}>
+              {project.name}
+            </option>
+          ))}
+        </select>
 
+        {/* Action Buttons */}
+        <div className="flex gap-2">
+          <Button
+            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+            variant="ghost"
+            size="sm"
+            icon={showAdvancedFilters ? ChevronDown : Filter}
+            className="text-xs px-2"
+          >
+            {showAdvancedFilters ? 'Less' : 'More'}
+          </Button>
+          
           {hasActiveFilters && (
-            <button
+            <Button
               onClick={clearAllFilters}
-              className="flex items-center px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              variant="ghost"
+              size="sm"
+              icon={X}
+              className="text-xs text-red-600 hover:text-red-700 px-2"
             >
-              <X className="w-4 h-4 mr-2" />
-              Clear All
-            </button>
+              Clear
+            </Button>
           )}
         </div>
       </div>
 
-      {/* Advanced Filters */}
+      {/* Line 2: Date Range (when expanded) */}
       {showAdvancedFilters && (
-        <div className="mt-6 pt-6 border-t border-gray-200">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Assignee Filter */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <User className="w-4 h-4 inline mr-1" />
-                Assignee
-              </label>
-              <input
-                type="text"
-                placeholder="Filter by assignee..."
-                value={filters.assignee || ''}
-                onChange={(e) => handleFilterChange('assignee', e.target.value || undefined)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-              />
-            </div>
+        <div className="flex gap-3 mb-3">
+          <input
+            type="date"
+            placeholder="Start Date"
+            value={filters.dateRange?.start?.toISOString().split('T')[0] || ''}
+            onChange={(e) => {
+              const start = e.target.value ? new Date(e.target.value) : undefined;
+              handleFilterChange('dateRange', {
+                start,
+                end: filters.dateRange?.end
+              });
+            }}
+            className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm w-40"
+          />
+          <input
+            type="date"
+            placeholder="End Date"
+            value={filters.dateRange?.end?.toISOString().split('T')[0] || ''}
+            onChange={(e) => {
+              const end = e.target.value ? new Date(e.target.value) : undefined;
+              handleFilterChange('dateRange', {
+                start: filters.dateRange?.start,
+                end
+              });
+            }}
+            className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm w-40"
+          />
+        </div>
+      )}
 
-            {/* Labels Filter */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <Tag className="w-4 h-4 inline mr-1" />
-                Labels
-              </label>
-              <input
-                type="text"
-                placeholder="Filter by labels..."
-                value={filters.labels?.join(', ') || ''}
-                onChange={(e) => {
-                  const labels = e.target.value.split(',').map(l => l.trim()).filter(l => l);
-                  handleFilterChange('labels', labels.length > 0 ? labels : undefined);
-                }}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-              />
-            </div>
-
-            {/* Date Range */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <Calendar className="w-4 h-4 inline mr-1" />
-                Date Range
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  type="date"
-                  value={filters.dateRange?.start?.toISOString().split('T')[0] || ''}
-                  onChange={(e) => {
-                    const start = e.target.value ? new Date(e.target.value) : undefined;
-                    handleFilterChange('dateRange', {
-                      start,
-                      end: filters.dateRange?.end
-                    });
-                  }}
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                />
-                <input
-                  type="date"
-                  value={filters.dateRange?.end?.toISOString().split('T')[0] || ''}
-                  onChange={(e) => {
-                    const end = e.target.value ? new Date(e.target.value) : undefined;
-                    handleFilterChange('dateRange', {
-                      start: filters.dateRange?.start,
-                      end
-                    });
-                  }}
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                />
-              </div>
-            </div>
-
-            {/* Project Filter */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Project
-              </label>
-              <select
-                value={filters.projectId || 'all'}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  handleFilterChange('projectId', value === 'all' ? undefined : value);
-                }}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+      {/* Active Filters Display - Compact */}
+      {hasActiveFilters && (
+        <div className="flex flex-wrap gap-1">
+          {searchTerm && (
+            <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
+              <Search className="w-3 h-3 mr-1" />
+              "{searchTerm}"
+              <button
+                onClick={() => onSearchChange('')}
+                className="ml-1 hover:text-blue-600 transition-colors"
               >
-                <option value="all">All Projects</option>
-                <option value="project1">Project Alpha</option>
-                <option value="project2">Project Beta</option>
-                <option value="project3">Project Gamma</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Active Filters Display */}
-          {hasActiveFilters && (
-            <div className="mt-4 pt-4 border-t border-gray-200">
-              <div className="flex flex-wrap gap-2">
-                {searchTerm && (
-                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                    Search: "{searchTerm}"
-                    <button
-                      onClick={() => onSearchChange('')}
-                      className="ml-1 hover:text-blue-600"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </span>
-                )}
-                {filters.status?.map(status => (
-                  <span key={status} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                    Status: {status}
-                    <button
-                      onClick={() => handleFilterChange('status', filters.status?.filter(s => s !== status))}
-                      className="ml-1 hover:text-green-600"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </span>
-                ))}
-                {filters.priority?.map(priority => (
-                  <span key={priority} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                    Priority: {priority}
-                    <button
-                      onClick={() => handleFilterChange('priority', filters.priority?.filter(p => p !== priority))}
-                      className="ml-1 hover:text-orange-600"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </span>
-                ))}
-                {filters.assignee && (
-                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                    Assignee: {filters.assignee}
-                    <button
-                      onClick={() => handleFilterChange('assignee', undefined)}
-                      className="ml-1 hover:text-purple-600"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </span>
-                )}
-              </div>
-            </div>
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+          {filters.status?.map(status => (
+            <span key={status} className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800">
+              {status}
+              <button
+                onClick={() => handleFilterChange('status', filters.status?.filter(s => s !== status))}
+                className="ml-1 hover:text-green-600 transition-colors"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+          {filters.priority?.map(priority => (
+            <span key={priority} className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-800">
+              {priority}
+              <button
+                onClick={() => handleFilterChange('priority', filters.priority?.filter(p => p !== priority))}
+                className="ml-1 hover:text-orange-600 transition-colors"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+          {filters.assignee && (
+            <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800">
+              <User className="w-3 h-3 mr-1" />
+              {teamMembers.find(member => member.id === filters.assignee)?.name || filters.assignee}
+              <button
+                onClick={() => handleFilterChange('assignee', undefined)}
+                className="ml-1 hover:text-purple-600 transition-colors"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
           )}
         </div>
       )}

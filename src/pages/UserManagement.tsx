@@ -19,6 +19,7 @@ import {
   Crown,
   UserCheck
 } from 'lucide-react';
+import { Button, IconButton } from '../components/common/buttons';
 
 interface UserFormData {
   name: string;
@@ -429,22 +430,22 @@ const UserManagement = () => {
             {/* Action Buttons */}
             <div className="flex gap-3">
               {canCreateUsers && (
-                <button
+                <Button
                   onClick={() => setShowCreateUserModal(true)}
-                  className="btn-primary flex items-center gap-2"
+                  variant="primary"
+                  icon={UserPlus}
                 >
-                  <UserPlus className="w-4 h-4" />
                   Add User
-                </button>
+                </Button>
               )}
               {canCreateTeams && (
-                <button
+                <Button
                   onClick={handleOpenTeamModal}
-                  className="btn-secondary flex items-center gap-2"
+                  variant="secondary"
+                  icon={Users}
                 >
-                  <Users className="w-4 h-4" />
                   Create Team
-                </button>
+                </Button>
               )}
             </div>
           </div>
@@ -503,27 +504,27 @@ const UserManagement = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <div className="flex items-center justify-end gap-2">
-                            <button
+                            <IconButton
                               onClick={() => handleSendPasswordReset(userItem.email, userItem.name)}
-                              className="text-blue-600 hover:text-blue-900 p-1"
+                              icon={Mail}
+                              variant="ghost"
+                              size="sm"
                               title="Send Password Reset"
-                            >
-                              <Mail className="w-4 h-4" />
-                            </button>
-                            <button
+                            />
+                            <IconButton
                               onClick={() => handleEditUser(userItem)}
-                              className="text-indigo-600 hover:text-indigo-900 p-1"
+                              icon={Edit}
+                              variant="ghost"
+                              size="sm"
                               title="Edit User"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
-                            <button
+                            />
+                            <IconButton
                               onClick={() => handleDeleteUser(userItem.id)}
-                              className="text-red-600 hover:text-red-900 p-1"
+                              icon={Trash2}
+                              variant="danger"
+                              size="sm"
                               title="Delete User"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            />
                           </div>
                         </td>
                       </tr>
@@ -587,27 +588,27 @@ const UserManagement = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <div className="flex items-center justify-end gap-2">
-                            <button
+                            <IconButton
                               onClick={() => handleSendPasswordReset(userItem.email, userItem.name)}
-                              className="text-blue-600 hover:text-blue-900 p-1"
+                              icon={Mail}
+                              variant="ghost"
+                              size="sm"
                               title="Send Password Reset"
-                            >
-                              <Mail className="w-4 h-4" />
-                            </button>
-                            <button
+                            />
+                            <IconButton
                               onClick={() => handleEditUser(userItem)}
-                              className="text-indigo-600 hover:text-indigo-900 p-1"
+                              icon={Edit}
+                              variant="ghost"
+                              size="sm"
                               title="Edit User"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
-                            <button
+                            />
+                            <IconButton
                               onClick={() => handleDeleteUser(userItem.id)}
-                              className="text-red-600 hover:text-red-900 p-1"
+                              icon={Trash2}
+                              variant="danger"
+                              size="sm"
                               title="Delete User"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            />
                           </div>
                         </td>
                       </tr>
@@ -671,27 +672,27 @@ const UserManagement = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <div className="flex items-center justify-end gap-2">
-                            <button
+                            <IconButton
                               onClick={() => handleSendPasswordReset(userItem.email, userItem.name)}
-                              className="text-blue-600 hover:text-blue-900 p-1"
+                              icon={Mail}
+                              variant="ghost"
+                              size="sm"
                               title="Send Password Reset"
-                            >
-                              <Mail className="w-4 h-4" />
-                            </button>
-                            <button
+                            />
+                            <IconButton
                               onClick={() => handleEditUser(userItem)}
-                              className="text-indigo-600 hover:text-indigo-900 p-1"
+                              icon={Edit}
+                              variant="ghost"
+                              size="sm"
                               title="Edit User"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
-                            <button
+                            />
+                            <IconButton
                               onClick={() => handleDeleteUser(userItem.id)}
-                              className="text-red-600 hover:text-red-900 p-1"
+                              icon={Trash2}
+                              variant="danger"
+                              size="sm"
                               title="Delete User"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            />
                           </div>
                         </td>
                       </tr>
@@ -755,27 +756,27 @@ const UserManagement = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <div className="flex items-center justify-end gap-2">
-                            <button
+                            <IconButton
                               onClick={() => handleSendPasswordReset(userItem.email, userItem.name)}
-                              className="text-blue-600 hover:text-blue-900 p-1"
+                              icon={Mail}
+                              variant="ghost"
+                              size="sm"
                               title="Send Password Reset"
-                            >
-                              <Mail className="w-4 h-4" />
-                            </button>
-                            <button
+                            />
+                            <IconButton
                               onClick={() => handleEditUser(userItem)}
-                              className="text-indigo-600 hover:text-indigo-900 p-1"
+                              icon={Edit}
+                              variant="ghost"
+                              size="sm"
                               title="Edit User"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
-                            <button
+                            />
+                            <IconButton
                               onClick={() => handleDeleteUser(userItem.id)}
-                              className="text-red-600 hover:text-red-900 p-1"
+                              icon={Trash2}
+                              variant="danger"
+                              size="sm"
                               title="Delete User"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            />
                           </div>
                         </td>
                       </tr>
@@ -799,13 +800,13 @@ const UserManagement = () => {
               </p>
               {canCreateUsers && (
                 <div className="mt-6">
-                  <button
+                  <Button
                     onClick={() => setShowCreateUserModal(true)}
-                    className="btn-primary"
+                    variant="primary"
+                    icon={UserPlus}
                   >
-                    <UserPlus className="w-4 h-4 mr-2" />
                     Add User
-                  </button>
+                  </Button>
                 </div>
               )}
             </div>
@@ -855,8 +856,8 @@ const UserManagement = () => {
                   )}
                 </div>
                 <div className="mt-6 flex gap-3">
-                  <button type="button" onClick={() => setShowCreateUserModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Cancel</button>
-                  <button type="submit" disabled={loading} className="flex-1 btn-primary disabled:opacity-50">{loading ? 'Creating...' : 'Create User'}</button>
+                  <Button type="button" onClick={() => setShowCreateUserModal(false)} variant="ghost" fullWidth>Cancel</Button>
+                  <Button type="submit" disabled={loading} variant="primary" fullWidth loading={loading}>{loading ? 'Creating...' : 'Create User'}</Button>
                 </div>
               </form>
             </div>
@@ -906,8 +907,8 @@ const UserManagement = () => {
                   )}
                 </div>
                 <div className="mt-6 flex gap-3">
-                  <button type="button" onClick={() => { setShowEditUserModal(false); setEditingUser(null); setUserFormData({ name: '', email: '', role: 'team_member', teamId: '' }); }} className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Cancel</button>
-                  <button type="submit" disabled={loading} className="flex-1 btn-primary disabled:opacity-50">{loading ? 'Updating...' : 'Update User'}</button>
+                  <Button type="button" onClick={() => { setShowEditUserModal(false); setEditingUser(null); setUserFormData({ name: '', email: '', role: 'team_member', teamId: '' }); }} variant="ghost" fullWidth>Cancel</Button>
+                  <Button type="submit" disabled={loading} variant="primary" fullWidth loading={loading}>{loading ? 'Updating...' : 'Update User'}</Button>
                 </div>
               </form>
             </div>
@@ -931,8 +932,8 @@ const UserManagement = () => {
                   </div>
                 </div>
                 <div className="mt-6 flex gap-3">
-                  <button type="button" onClick={() => setShowCreateTeamModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Cancel</button>
-                  <button type="submit" disabled={loading} className="flex-1 btn-primary disabled:opacity-50">{loading ? 'Creating...' : 'Create Team'}</button>
+                  <Button type="button" onClick={() => setShowCreateTeamModal(false)} variant="ghost" fullWidth>Cancel</Button>
+                  <Button type="submit" disabled={loading} variant="primary" fullWidth loading={loading}>{loading ? 'Creating...' : 'Create Team'}</Button>
                 </div>
               </form>
             </div>

@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { 
   Users, 
   Bug, 
@@ -7,24 +7,23 @@ import {
   Calendar, 
   MoreVertical, 
   Eye, 
-  Edit, 
   Trash2, 
   AlertCircle,
   CheckCircle,
+  Edit,
 
   User as UserIcon
 } from 'lucide-react';
 import type { Project } from '../../types/projects';
 import { useTeams } from '../../context/TeamContext';
+import { useAuth } from '../../context/AuthContext';
 import { getTeamById } from '../../services/teamService';
 import { getUserById } from '../../services/userService';
 
 interface ProjectCardProps {
   project: Project;
-  onEdit: (project: Project) => void;
   onDelete: (projectId: string) => void;
   onSettings: (project: Project) => void;
-  onEditTeam?: (teamId: string) => void;
   bugCount?: number;
   bugStats?: {
     total: number;
@@ -36,15 +35,15 @@ interface ProjectCardProps {
 
 const ProjectCard: React.FC<ProjectCardProps> = ({
   project,
-  onEdit,
   onDelete,
   onSettings,
-  onEditTeam,
   bugCount = 0,
   bugStats
 }) => {
   const { teams } = useTeams();
-  const memberCount = project.members?.length || 0;
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [memberCount, setMemberCount] = useState<number>(0);
   const openBugs = bugStats?.open || 0;
   const resolvedBugs = bugStats?.resolved || 0;
 
@@ -53,6 +52,39 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
   const [teamName, setTeamName] = useState<string>(project.teamId ? 'Loading…' : 'No Team');
   const [managerName, setManagerName] = useState<string>('-');
   const [teamLeadName, setTeamLeadName] = useState<string>('-');
+  const [menuOpen, setMenuOpen] = useState<boolean>(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  const canManageProject = useMemo(() => {
+    if (!user) return false;
+    return user.role === 'super_admin' || user.role === 'manager' || user.role === 'team_lead';
+  }, [user]);
+
+  // Close menu on outside click
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [menuOpen]);
+
+  // Role-gated create bug permission: allow super_admin/manager/team_lead; allow team_member only if QC/QA team
+  const canCreateBug = useMemo(() => {
+    if (!user) return false;
+    if (user.role === 'super_admin' || user.role === 'manager' || user.role === 'team_lead') return true;
+    if (user.role === 'team_member') {
+      const team = user.teamId ? teams.find(t => t.id === user.teamId) : undefined;
+      if (team?.name) {
+        const name = team.name.toLowerCase();
+        return name.includes('qa') || name.includes('qc') || name.includes('quality');
+      }
+    }
+    return false;
+  }, [user, teams]);
 
   useEffect(() => {
     let isActive = true;
@@ -62,15 +94,21 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
         if (project.teamId) {
           const ctxTeam = teams.find(t => t.id === project.teamId);
           let teamManagerId: string | undefined;
+          let teamMembersCount = 0;
+          
           if (ctxTeam) {
             if (!isActive) return;
             setTeamName(ctxTeam.name);
             teamManagerId = ctxTeam.managerId;
+            teamMembersCount = ctxTeam.members?.length || 0;
+            setMemberCount(teamMembersCount);
           } else {
             const fetched = await getTeamById(project.teamId);
             if (!isActive) return;
             setTeamName(fetched?.name || 'Unknown Team');
             teamManagerId = fetched?.managerId;
+            teamMembersCount = fetched?.members?.length || 0;
+            setMemberCount(teamMembersCount);
           }
 
           if (teamManagerId) {
@@ -83,12 +121,39 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
         } else {
           setTeamName('No Team');
           setManagerName('-');
+          setMemberCount(0);
         }
 
         let leadId: string | undefined;
-        const adminMember = project.members?.find(m => m.role === 'admin');
-        if (adminMember) leadId = adminMember.userId;
-        else if (project.owner) leadId = project.owner;
+        
+        // First, try to get team lead from the assigned team
+        if (project.teamId) {
+          const ctxTeam = teams.find(t => t.id === project.teamId);
+          if (ctxTeam?.teamLeadId) {
+            leadId = ctxTeam.teamLeadId;
+          } else {
+            // If no team lead in team, try to fetch team data
+            try {
+              const fetched = await getTeamById(project.teamId);
+              if (fetched?.teamLeadId) {
+                leadId = fetched.teamLeadId;
+              }
+            } catch (error) {
+              console.error('Error fetching team for lead:', error);
+            }
+          }
+        }
+        
+        // Fallback: look for team_lead in project members
+        if (!leadId) {
+          const teamLeadMember = project.members?.find(m => m.role === 'team_lead');
+          if (teamLeadMember) leadId = teamLeadMember.userId;
+        }
+        
+        // Final fallback: use project owner
+        if (!leadId && project.owner) {
+          leadId = project.owner;
+        }
 
         if (leadId) {
           const lead = await getUserById(leadId);
@@ -102,6 +167,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
         setTeamName(project.teamId ? 'Unknown Team' : 'No Team');
         setManagerName('-');
         setTeamLeadName('-');
+        setMemberCount(0);
       }
     };
 
@@ -182,7 +248,10 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
         <div className="flex items-start justify-between mb-4">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-2">
-              <h3 className="text-lg font-semibold text-gray-900 group-hover:text-primary transition-colors truncate">
+              <h3 
+                onClick={() => navigate(`/p/${project.slug}/preview`)}
+                className="text-lg font-semibold text-gray-900 group-hover:text-primary transition-colors truncate cursor-pointer hover:text-primary"
+              >
                 {project.name}
               </h3>
               <span title={statusTooltip} className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(project.status)}`}>
@@ -190,53 +259,79 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
               </span>
             </div>
             <p className="text-sm text-gray-600 line-clamp-2 mb-2">
-              {project.description}
+              {project.shortDescription || 'No description'}
             </p>
             <div className="flex items-center text-xs text-gray-500">
               <Calendar className="w-3 h-3 mr-1" />
               Created {project.createdAt.toLocaleDateString()}
             </div>
           </div>
-          <div className="ml-4">
-            <button className="text-gray-400 hover:text-gray-600 p-1 rounded transition-colors">
-              <MoreVertical className="w-4 h-4" />
-            </button>
-          </div>
+          {(canManageProject || canCreateBug) && (
+            <div className="ml-4 relative" ref={menuRef}>
+              <button
+                onClick={() => setMenuOpen(prev => !prev)}
+                className="text-gray-400 hover:text-gray-600 p-1 rounded transition-colors"
+              >
+                <MoreVertical className="w-4 h-4" />
+              </button>
+              {menuOpen && (
+                <div className="absolute right-0 mt-2 w-44 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
+                <button
+                  onClick={() => { setMenuOpen(false); navigate(`/p/${project.slug}/edit`); }}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
+                >
+                  <Edit className="w-4 h-4 inline mr-2 text-gray-500" /> Edit
+                </button>
+                {onSettings && canManageProject && (
+                  <button
+                    onClick={() => { setMenuOpen(false); onSettings(project); }}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
+                  >
+                    <Settings className="w-4 h-4 inline mr-2 text-gray-500" />Settings
+                  </button>
+                )}
+                {onDelete && canManageProject && (
+                  <button
+                    onClick={() => { setMenuOpen(false); onDelete(project.id); }}
+                    className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                  >
+                    <Trash2 className="w-4 h-4 inline mr-2" /> Delete
+                  </button>
+                )}
+                {canCreateBug && (
+                  <button
+                    onClick={() => { setMenuOpen(false); navigate(`/p/${project.slug}?newBug=1`); }}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
+                  >
+                    <Bug className="w-4 h-4 inline mr-2 text-gray-500" /> Create Bug
+                  </button>
+                )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Meta: Team / Manager / Lead */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
-          <div className="relative">
-            <Pill icon={<Users className="w-4 h-4" />} label="Assigned Team" value={teamName} />
-            {project.teamId && onEditTeam && (
-              <button
-                onClick={() => onEditTeam(project.teamId!)}
-                className="absolute top-2 right-2 p-1 text-gray-400 hover:text-gray-600 transition-colors rounded"
-                title="Edit Team"
-              >
-                <Edit className="w-3 h-3" />
-              </button>
-            )}
-          </div>
+          <Pill icon={<Users className="w-4 h-4" />} label="Assigned Team" value={teamName} />
           <Pill icon={<UserIcon className="w-4 h-4" />} label="Manager" value={managerName} />
           <Pill icon={<UserIcon className="w-4 h-4" />} label="Team Lead" value={teamLeadName} />
         </div>
 
         {/* Progress Bar */}
-        {totalBugs > 0 && (
-          <div className="mb-5">
-            <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
-              <span>Progress</span>
-              <span>{progressPercentage}%</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
-                className="bg-primary h-2 rounded-full transition-all duration-300"
-                style={{ width: `${progressPercentage}%` }}
-              ></div>
-            </div>
+        <div className="mb-5">
+          <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
+            <span>Progress</span>
+            <span>{progressPercentage}%</span>
           </div>
-        )}
+          <div className="w-full bg-gray-200 rounded-full h-2">
+            <div 
+              className="bg-primary h-2 rounded-full transition-all duration-300"
+              style={{ width: `${progressPercentage}%` }}
+            ></div>
+          </div>
+        </div>
 
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
@@ -270,34 +365,20 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
         <div className="flex items-center justify-between pt-4 border-t border-gray-100">
           <div className="flex items-center space-x-3">
             <Link
-              to={`/projects/${project.id}`}
+              to={`/p/${project.slug}`}
               className="flex items-center text-sm text-primary hover:text-primary/80 transition-colors font-medium"
             >
               <Eye className="w-4 h-4 mr-1" />
-              View Project
+              Kenben View
             </Link>
-            <button
-              onClick={() => onEdit(project)}
-              className="flex items-center text-sm text-gray-600 hover:text-gray-800 transition-colors"
-            >
-              <Edit className="w-4 h-4 mr-1" />
-              Edit
-            </button>
           </div>
           <div className="flex items-center space-x-1">
             <button
-              onClick={() => onSettings(project)}
-              className="p-2 text-gray-400 hover:text-gray-600 transition-colors rounded-lg hover:bg-gray-100"
-              title="Project Settings"
+              onClick={() => navigate(`/p/${project.slug}/preview`)}
+              className="flex items-center text-sm text-gray-600 hover:text-gray-800 transition-colors"
             >
-              <Settings className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => onDelete(project.id)}
-              className="p-2 text-red-400 hover:text-red-600 transition-colors rounded-lg hover:bg-red-50"
-              title="Delete Project"
-            >
-              <Trash2 className="w-4 h-4" />
+              <Eye className="w-4 h-4 mr-1" />
+              Preview
             </button>
           </div>
         </div>

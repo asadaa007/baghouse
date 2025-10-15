@@ -1,17 +1,14 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { useTeams } from '../../context/TeamContext';
 import { useBugs } from '../../context/BugContext';
 import { useProjects } from '../../context/ProjectContext';
 import { useAuth } from '../../context/AuthContext';
 import StatsCard from './StatsCard';
+import ActivityFeed from './ActivityFeed';
 import Breadcrumb from '../common/Breadcrumb';
 import Loading from '../common/Loading';
-import TeamModal from '../projects/TeamModal';
-import TeamDetailsModal from '../projects/TeamDetailsModal';
-import { TeamCard } from '../common';
-import { getUserNamesByIds, getUserDetailsByIds } from '../../services/userService';
-import { projectService } from '../../services/projectService';
+import { getUserNamesByIds } from '../../services/userService';
+import { activityService, type ActivityItem } from '../../services/activityService';
 import {
   Users,
   Shield,
@@ -19,79 +16,54 @@ import {
   CheckCircle,
   Folder,
   BarChart3,
-  Plus,
   Activity,
   Gauge,
   Server,
   KeyRound,
   Bug
 } from 'lucide-react';
+import { LinkButton, Button } from '../common/buttons';
 
 const SuperAdminDashboard = () => {
   const { user } = useAuth();
-  const { teams, loading: teamsLoading, updateTeam } = useTeams();
+  const { teams, loading: teamsLoading } = useTeams();
   const { bugs } = useBugs();
   const { projects } = useProjects();
-  const [teamModalOpen, setTeamModalOpen] = useState(false);
-  const [teamDetailsModalOpen, setTeamDetailsModalOpen] = useState(false);
-  const [selectedTeam, setSelectedTeam] = useState<any>(null);
-  const [teamModalMode, setTeamModalMode] = useState<'create' | 'edit'>('edit');
   const [managerNames, setManagerNames] = useState<Record<string, string>>({});
-  const [teamLeadNames, setTeamLeadNames] = useState<Record<string, string>>({});
-  const [projectCounts, setProjectCounts] = useState<Record<string, number>>({});
-  const [memberDetails, setMemberDetails] = useState<Record<string, { name: string; role: string }>>({});
+  const [activities, setActivities] = useState<ActivityItem[]>([]);
+  const [activitiesLoading, setActivitiesLoading] = useState(true);
 
-  // Fetch manager, team lead names, and member details for display
+  // Fetch manager names for display
   useEffect(() => {
     const fetchNames = async () => {
       if (teams.length > 0) {
         const managerIds = teams.map(team => team.managerId).filter((id): id is string => Boolean(id));
-        const teamLeadIds = teams.map(team => team.teamLeadId).filter((id): id is string => Boolean(id));
-        
-        // Get all unique member IDs from all teams
-        const allMemberIds = teams.reduce((acc: string[], team) => {
-          if (team.members && Array.isArray(team.members)) {
-            acc.push(...team.members);
-          }
-          return acc;
-        }, []);
-        const uniqueMemberIds = [...new Set(allMemberIds)];
-        
         const managerNames = await getUserNamesByIds(managerIds);
-        const teamLeadNames = await getUserNamesByIds(teamLeadIds);
-        const memberDetails = await getUserDetailsByIds(uniqueMemberIds);
-        
         setManagerNames(managerNames);
-        setTeamLeadNames(teamLeadNames);
-        setMemberDetails(memberDetails);
       }
     };
 
     fetchNames();
   }, [teams]);
 
-  // Fetch project counts for each team
+  // Fetch all activities for super admin
   useEffect(() => {
-    const fetchProjectCounts = async () => {
-      if (teams.length > 0) {
-        const counts: Record<string, number> = {};
-        
-        for (const team of teams) {
-          try {
-            const teamProjects = await projectService.getProjectsByTeam(team.id);
-            counts[team.id] = teamProjects.length;
-          } catch (error) {
-            console.error(`Error fetching projects for team ${team.id}:`, error);
-            counts[team.id] = 0;
-          }
-        }
-        
-        setProjectCounts(counts);
+    const fetchActivities = async () => {
+      if (!user) return;
+      
+      try {
+        setActivitiesLoading(true);
+        const allActivities = await activityService.getAllActivities(20);
+        setActivities(allActivities);
+      } catch (error) {
+        console.error('Error fetching activities:', error);
+      } finally {
+        setActivitiesLoading(false);
       }
     };
 
-    fetchProjectCounts();
-  }, [teams]);
+    fetchActivities();
+  }, [user]);
 
   const uniqueManagers = Array.from(new Set(teams.map(t => t.managerId)));
 
@@ -101,10 +73,10 @@ const SuperAdminDashboard = () => {
     totalMembers: teams.reduce((acc, team) => acc + (team.members?.length || 0), 0),
     totalProjects: projects.length,
     totalBugs: bugs.length,
-    resolvedBugs: bugs.filter(b => b.status === 'resolved').length,
+    resolvedBugs: bugs.filter(b => b.status === 'resolved' || b.status === 'closed').length,
     openBugs: bugs.filter(b => b.status === 'new' || b.status === 'in-progress').length,
     criticalBugs: bugs.filter(b => b.priority === 'critical').length,
-    resolutionRate: bugs.length ? Math.round((bugs.filter(b => b.status === 'resolved').length / bugs.length) * 100) : 0,
+    resolutionRate: bugs.length ? Math.round((bugs.filter(b => b.status === 'resolved' || b.status === 'closed').length / bugs.length) * 100) : 0,
   };
 
   const stats = [
@@ -135,35 +107,6 @@ const SuperAdminDashboard = () => {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5);
 
-  const handleEditTeam = (team: any) => {
-    setSelectedTeam(team);
-    setTeamModalMode('edit');
-    setTeamModalOpen(true);
-  };
-
-  const handleViewTeam = (team: any) => {
-    setSelectedTeam(team);
-    setTeamDetailsModalOpen(true);
-  };
-
-  const handleCreateTeam = () => {
-    setSelectedTeam(null);
-    setTeamModalMode('create');
-    setTeamModalOpen(true);
-  };
-
-  const handleSaveTeam = async (teamData: any) => {
-    try {
-      if (teamModalMode === 'edit' && selectedTeam) {
-        await updateTeam(selectedTeam.id, teamData);
-      }
-      setTeamModalOpen(false);
-      setSelectedTeam(null);
-    } catch (error) {
-      console.error('Error saving team:', error);
-      alert('Failed to save team');
-    }
-  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -176,8 +119,8 @@ const SuperAdminDashboard = () => {
           <p className="text-gray-600">Welcome back, {user?.name}. Here’s your system overview and controls.</p>
         </div>
         <div className="flex gap-2">
-          <Link to="/user-management" className="btn-secondary">Manage Users</Link>
-          <Link to="/projects" className="btn-secondary">View Projects</Link>
+          <LinkButton to="/user-management" variant="secondary">Manage Users</LinkButton>
+          <LinkButton to="/projects" variant="secondary">View Projects</LinkButton>
         </div>
       </div>
 
@@ -216,59 +159,22 @@ const SuperAdminDashboard = () => {
         <div className="bg-white rounded-lg shadow-sm p-6">
           <h3 className="text-xl font-semibold text-gray-900 mb-4">Quick Admin</h3>
           <div className="space-y-3">
-            <Link to="/user-management" className="w-full flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
-              <span className="text-sm font-medium text-gray-900">User Management</span>
-              <Users className="w-4 h-4 text-gray-400" />
-            </Link>
-            <Link to="/projects" className="w-full flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
-              <span className="text-sm font-medium text-gray-900">Projects</span>
-              <Folder className="w-4 h-4 text-gray-400" />
-            </Link>
-            <button className="w-full flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
-              <span className="text-sm font-medium text-gray-900">System Analytics</span>
-              <BarChart3 className="w-4 h-4 text-gray-400" />
-            </button>
-            <button className="w-full flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
-              <span className="text-sm font-medium text-gray-900">Access Controls</span>
-              <KeyRound className="w-4 h-4 text-gray-400" />
-            </button>
+            <Button variant="quick" icon={Users} onClick={() => window.location.href = '/user-management'}>
+              User Management
+            </Button>
+            <Button variant="quick" icon={Folder} onClick={() => window.location.href = '/projects'}>
+              Projects
+            </Button>
+            <Button variant="quick" icon={BarChart3}>
+              System Analytics
+            </Button>
+            <Button variant="quick" icon={KeyRound}>
+              Access Controls
+            </Button>
           </div>
         </div>
       </div>
 
-      {/* Teams Overview */}
-      <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-xl font-semibold text-gray-900">Teams Overview</h3>
-          <button onClick={handleCreateTeam} className="btn-primary"><Plus className="w-4 h-4 mr-2" />Create Team</button>
-        </div>
-        {teams.length === 0 ? (
-          <div className="text-center py-8">
-            <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h4 className="text-lg font-medium text-gray-900 mb-2">No teams yet</h4>
-            <p className="text-gray-600 mb-4">Create your first team to get started</p>
-            <button onClick={handleCreateTeam} className="btn-primary"><Plus className="w-4 h-4 mr-2" />Create Team</button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-6">
-            {teams.map((team) => (
-                             <TeamCard
-                 key={team.id}
-                 team={team}
-                 managerName={managerNames[team.managerId]}
-                 teamLeadName={team.teamLeadId ? teamLeadNames[team.teamLeadId] : undefined}
-                 projectCount={projectCounts[team.id] || 0}
-                 totalBugs={bugs.filter(b => b.projectId && projects.find(p => p.id === b.projectId)?.teamId === team.id).length}
-                 bugsResolved={bugs.filter(b => b.projectId && projects.find(p => p.id === b.projectId)?.teamId === team.id && b.status === 'resolved').length}
-                 memberDetails={memberDetails}
-                 onView={handleViewTeam}
-                 onEdit={handleEditTeam}
-                 variant="default"
-               />
-            ))}
-          </div>
-        )}
-      </div>
 
       {/* Leaderboard & Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -285,48 +191,14 @@ const SuperAdminDashboard = () => {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h3 className="text-xl font-semibold text-gray-900 mb-4">Recent Activity</h3>
-          <div className="space-y-3">
-            <div className="flex items-center justify_between p-3 border border-gray-100 rounded-lg">
-              <div className="text-sm text-gray-900">New team created</div>
-              <div className="text-xs text-gray-500">2 hours ago</div>
-            </div>
-            <div className="flex items-center justify_between p-3 border border-gray-100 rounded-lg">
-              <div className="text-sm text-gray-900">Bug resolved</div>
-              <div className="text-xs text-gray-500">4 hours ago</div>
-            </div>
-            <div className="flex items-center justify_between p-3 border border-gray-100 rounded-lg">
-              <div className="text-sm text-gray-900">New project started</div>
-              <div className="text-xs text-gray-500">1 day ago</div>
-            </div>
-          </div>
-        </div>
+        <ActivityFeed 
+          activities={activities}
+          loading={activitiesLoading}
+          showProject={true}
+          maxItems={10}
+        />
       </div>
 
-             <TeamModal
-         isOpen={teamModalOpen}
-         onClose={() => {
-           setTeamModalOpen(false);
-           setSelectedTeam(null);
-         }}
-         onSave={handleSaveTeam}
-         team={selectedTeam}
-         mode={teamModalMode}
-       />
-
-       <TeamDetailsModal
-         isOpen={teamDetailsModalOpen}
-         onClose={() => {
-           setTeamDetailsModalOpen(false);
-           setSelectedTeam(null);
-         }}
-         team={selectedTeam}
-         managerName={selectedTeam ? managerNames[selectedTeam.managerId] : undefined}
-         teamLeadName={selectedTeam && selectedTeam.teamLeadId ? teamLeadNames[selectedTeam.teamLeadId] : undefined}
-         totalBugs={selectedTeam ? bugs.filter(b => b.projectId && projects.find(p => p.id === b.projectId)?.teamId === selectedTeam.id).length : 0}
-         bugsResolved={selectedTeam ? bugs.filter(b => b.projectId && projects.find(p => p.id === b.projectId)?.teamId === selectedTeam.id && b.status === 'resolved').length : 0}
-       />
     </div>
   );
 };

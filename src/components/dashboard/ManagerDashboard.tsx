@@ -1,17 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { useTeams } from '../../context/TeamContext';
 import { useBugs } from '../../context/BugContext';
 import { useProjects } from '../../context/ProjectContext';
 import { useAuth } from '../../context/AuthContext';
 import StatsCard from './StatsCard';
+import ActivityFeed from './ActivityFeed';
 import Breadcrumb from '../common/Breadcrumb';
 import Loading from '../common/Loading';
-import TeamModal from '../projects/TeamModal';
-import TeamDetailsModal from '../projects/TeamDetailsModal';
-import { TeamCard } from '../common';
-import { getUserNamesByIds, getUserDetailsByIds } from '../../services/userService';
-import { projectService } from '../../services/projectService';
 import { 
   Users, 
   TrendingUp, 
@@ -20,82 +15,44 @@ import {
   Clock,
   Folder,
   BarChart3,
-  Plus,
   UserPlus,
   Target,
   Award,
-  Calendar,
-  Star
+  Calendar
 } from 'lucide-react';
+import { Button } from '../common/buttons';
+import { activityService, type ActivityItem } from '../../services/activityService';
 
 
 const ManagerDashboard = () => {
   const { user } = useAuth();
-  const { teams, loading: teamsLoading, updateTeam } = useTeams();
+  const { teams, loading: teamsLoading } = useTeams();
   const { bugs } = useBugs();
   const { projects } = useProjects();
+  const [activities, setActivities] = useState<ActivityItem[]>([]);
+  const [activitiesLoading, setActivitiesLoading] = useState(true);
 
   const [selectedTimeframe, setSelectedTimeframe] = useState('week');
-  const [teamModalOpen, setTeamModalOpen] = useState(false);
-  const [teamDetailsModalOpen, setTeamDetailsModalOpen] = useState(false);
-  const [selectedTeam, setSelectedTeam] = useState<any>(null);
-  const [teamModalMode, setTeamModalMode] = useState<'create' | 'edit'>('edit');
-  const [managerNames, setManagerNames] = useState<Record<string, string>>({});
-  const [teamLeadNames, setTeamLeadNames] = useState<Record<string, string>>({});
-  const [projectCounts, setProjectCounts] = useState<Record<string, number>>({});
-  const [memberDetails, setMemberDetails] = useState<Record<string, { name: string; role: string }>>({});
 
-  // Fetch manager, team lead names, and member details for display
+  // Fetch recent activities
   useEffect(() => {
-    const fetchNames = async () => {
-      if (teams.length > 0) {
-        const managerIds = teams.map(team => team.managerId).filter((id): id is string => Boolean(id));
-        const teamLeadIds = teams.map(team => team.teamLeadId).filter((id): id is string => Boolean(id));
-        
-        // Get all unique member IDs from all teams
-        const allMemberIds = teams.reduce((acc: string[], team) => {
-          if (team.members && Array.isArray(team.members)) {
-            acc.push(...team.members);
-          }
-          return acc;
-        }, []);
-        const uniqueMemberIds = [...new Set(allMemberIds)];
-        
-        const managerNames = await getUserNamesByIds(managerIds);
-        const teamLeadNames = await getUserNamesByIds(teamLeadIds);
-        const memberDetails = await getUserDetailsByIds(uniqueMemberIds);
-        
-        setManagerNames(managerNames);
-        setTeamLeadNames(teamLeadNames);
-        setMemberDetails(memberDetails);
+    const fetchActivities = async () => {
+      if (!user) return;
+      
+      try {
+        setActivitiesLoading(true);
+        const recentActivities = await activityService.getRecentActivities(user.id, 10);
+        setActivities(recentActivities);
+      } catch (error) {
+        console.error('Error fetching activities:', error);
+      } finally {
+        setActivitiesLoading(false);
       }
     };
 
-    fetchNames();
-  }, [teams]);
+    fetchActivities();
+  }, [user]);
 
-  // Fetch project counts for each team
-  useEffect(() => {
-    const fetchProjectCounts = async () => {
-      if (teams.length > 0) {
-        const counts: Record<string, number> = {};
-        
-        for (const team of teams) {
-          try {
-            const teamProjects = await projectService.getProjectsByTeam(team.id);
-            counts[team.id] = teamProjects.length;
-          } catch (error) {
-            console.error(`Error fetching projects for team ${team.id}:`, error);
-            counts[team.id] = 0;
-          }
-        }
-        
-        setProjectCounts(counts);
-      }
-    };
-
-    fetchProjectCounts();
-  }, [teams]);
 
   // Filter bugs and projects for teams managed by this manager
   const managedTeamIds = teams.map(team => team.id);
@@ -108,7 +65,7 @@ const ManagerDashboard = () => {
     totalMembers: teams.reduce((acc, team) => acc + (team.members?.length || 0), 0),
     totalProjects: teamProjects.length,
     totalBugs: teamBugs.length,
-    resolvedBugs: teamBugs.filter(bug => bug.status === 'resolved').length,
+    resolvedBugs: teamBugs.filter(bug => bug.status === 'resolved' || bug.status === 'closed').length,
     openBugs: teamBugs.filter(bug => bug.status === 'new' || bug.status === 'in-progress').length,
     criticalBugs: teamBugs.filter(bug => bug.priority === 'critical').length,
     avgResolutionTime: 2.5, // TODO: Calculate actual average
@@ -184,82 +141,7 @@ const ManagerDashboard = () => {
     }
   ];
 
-  // Mock data for recent activities
-  const recentActivities = [
-    {
-      id: 1,
-      type: 'member_added',
-      message: 'John Doe added to Development Team',
-      time: '2 hours ago',
-      icon: UserPlus,
-      color: 'text-blue-500'
-    },
-    {
-      id: 2,
-      type: 'bug_resolved',
-      message: 'Critical bug resolved in Project Alpha',
-      time: '4 hours ago',
-      icon: CheckCircle,
-      color: 'text-green-500'
-    },
-    {
-      id: 3,
-      type: 'project_started',
-      message: 'New project "Beta Release" assigned',
-      time: '1 day ago',
-      icon: Folder,
-      color: 'text-indigo-500'
-    },
-    {
-      id: 4,
-      type: 'performance_improved',
-      message: 'Team performance improved by 15%',
-      time: '2 days ago',
-      icon: TrendingUp,
-      color: 'text-purple-500'
-    }
-  ];
 
-  // Mock data for team performance
-  const teamPerformanceData = teams.map(team => ({
-    id: team.id,
-    name: team.name,
-    performance: Math.floor(Math.random() * 30) + 70, // 70-100%
-    bugsResolved: Math.floor(Math.random() * 20) + 5,
-    projectsCompleted: projectCounts[team.id] || 0,
-    avgResponseTime: (Math.random() * 3 + 1).toFixed(1),
-    memberCount: team.members?.length || 0
-  }));
-
-  const handleEditTeam = (team: any) => {
-    setSelectedTeam(team);
-    setTeamModalMode('edit');
-    setTeamModalOpen(true);
-  };
-
-  const handleViewTeam = (team: any) => {
-    setSelectedTeam(team);
-    setTeamDetailsModalOpen(true);
-  };
-
-  const handleCreateTeam = () => {
-    setSelectedTeam(null);
-    setTeamModalMode('create');
-    setTeamModalOpen(true);
-  };
-
-  const handleSaveTeam = async (teamData: any) => {
-    try {
-      if (teamModalMode === 'edit' && selectedTeam) {
-        await updateTeam(selectedTeam.id, teamData);
-      }
-      setTeamModalOpen(false);
-      setSelectedTeam(null);
-    } catch (error) {
-      console.error('Error saving team:', error);
-      alert('Failed to save team');
-    }
-  };
 
   if (teamsLoading) {
     return (
@@ -300,10 +182,9 @@ const ManagerDashboard = () => {
               <option value="month">This Month</option>
               <option value="quarter">This Quarter</option>
             </select>
-            <button className="btn-primary">
-              <BarChart3 className="w-4 h-4 mr-2" />
+            <Button variant="primary" icon={BarChart3}>
               Export Report
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -315,169 +196,41 @@ const ManagerDashboard = () => {
         ))}
       </div>
 
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-        {/* My Teams */}
-        <div className="lg:col-span-2 bg-white rounded-lg shadow-sm p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-semibold text-gray-900">My Teams</h3>
-            <div className="flex space-x-2">
-              <Link to="/user-management" className="btn-secondary">
-                <UserPlus className="w-4 h-4 mr-2" />
-                Manage Members
-              </Link>
-              <button onClick={handleCreateTeam} className="btn-primary">
-                <Plus className="w-4 h-4 mr-2" />
-                Create Team
-              </button>
-            </div>
-          </div>
-
-          {teams.length === 0 ? (
-            <div className="text-center py-8">
-              <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <h4 className="text-lg font-medium text-gray-900 mb-2">No teams yet</h4>
-              <p className="text-gray-600 mb-4">Create your first team to get started</p>
-              <button onClick={handleCreateTeam} className="btn-primary">
-                <Plus className="w-4 h-4 mr-2" />
-                Create Team
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-6">
-              {teams.map((team) => {
-
-                return (
-                                     <TeamCard
-                     key={team.id}
-                     team={team}
-                     managerName={managerNames[team.managerId]}
-                     teamLeadName={team.teamLeadId ? teamLeadNames[team.teamLeadId] : undefined}
-                     projectCount={projectCounts[team.id] || 0}
-                     totalBugs={bugs.filter(b => b.projectId && projects.find(p => p.id === b.projectId)?.teamId === team.id).length}
-                     bugsResolved={bugs.filter(b => b.projectId && projects.find(p => p.id === b.projectId)?.teamId === team.id && b.status === 'resolved').length}
-                     memberDetails={memberDetails}
-                     onView={handleViewTeam}
-                     onEdit={handleEditTeam}
-                     variant="default"
-                   />
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Quick Actions & Recent Activity */}
+      {/* Quick Actions & Recent Activity */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
         <div className="space-y-6">
           {/* Quick Actions */}
           <div className="bg-white rounded-lg shadow-sm p-6">
             <h3 className="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h3>
             <div className="space-y-3">
-              <Link to="/user-management" className="w-full flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                <span className="text-sm font-medium text-gray-900">Manage Team Members</span>
-                <UserPlus className="w-4 h-4 text-gray-400" />
-              </Link>
-              <button className="w-full flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                <span className="text-sm font-medium text-gray-900">Create New Project</span>
-                <Folder className="w-4 h-4 text-gray-400" />
-              </button>
-              <button className="w-full flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                <span className="text-sm font-medium text-gray-900">Team Analytics</span>
-                <BarChart3 className="w-4 h-4 text-gray-400" />
-              </button>
-              <button className="w-full flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                <span className="text-sm font-medium text-gray-900">Schedule Meeting</span>
-                <Calendar className="w-4 h-4 text-gray-400" />
-              </button>
-              <button className="w-full flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                <span className="text-sm font-medium text-gray-900">Performance Review</span>
-                <Target className="w-4 h-4 text-gray-400" />
-              </button>
+              <Button variant="quick" icon={UserPlus} onClick={() => window.location.href = '/user-management'}>
+                Manage Team Members
+              </Button>
+              <Button variant="quick" icon={Folder}>
+                Create New Project
+              </Button>
+              <Button variant="quick" icon={BarChart3}>
+                Team Analytics
+              </Button>
+              <Button variant="quick" icon={Calendar}>
+                Schedule Meeting
+              </Button>
+              <Button variant="quick" icon={Target}>
+                Performance Review
+              </Button>
             </div>
           </div>
 
           {/* Recent Activity */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h3 className="text-xl font-semibold text-gray-900 mb-4">Recent Activity</h3>
-            <div className="space-y-4">
-              {recentActivities.map((activity) => (
-                <div key={activity.id} className="flex items-start space-x-3">
-                  <div className={`w-2 h-2 mt-2 rounded-full ${activity.color.replace('text-', 'bg-')}`}></div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-900">{activity.message}</p>
-                    <p className="text-xs text-gray-500">{activity.time}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <button className="w-full mt-4 text-sm text-primary hover:text-primary/80 font-medium">
-              View All Activity
-            </button>
-          </div>
+          <ActivityFeed 
+            activities={activities}
+            loading={activitiesLoading}
+            showProject={true}
+            maxItems={8}
+          />
         </div>
       </div>
 
-      {/* Team Performance Overview */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-xl font-semibold text-gray-900">Team Performance Overview</h3>
-          <div className="flex items-center space-x-2">
-            <span className="text-sm text-gray-500">Performance Score</span>
-            <div className="flex items-center space-x-1">
-              {[1, 2, 3, 4, 5].map((star) => (
-                <Star key={star} className="w-4 h-4 text-yellow-400 fill-current" />
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-6">
-          {teamPerformanceData.map((team) => {
-            const teamData = teams.find(t => t.id === team.id);
-            if (!teamData) return null;
-            
-            return (
-                             <TeamCard
-                 key={team.id}
-                 team={teamData}
-                 managerName={managerNames[teamData.managerId]}
-                 teamLeadName={teamData.teamLeadId ? teamLeadNames[teamData.teamLeadId] : undefined}
-                 projectCount={projectCounts[team.id] || 0}
-                 totalBugs={bugs.filter(b => b.projectId && projects.find(p => p.id === b.projectId)?.teamId === teamData.id).length}
-                 bugsResolved={bugs.filter(b => b.projectId && projects.find(p => p.id === b.projectId)?.teamId === teamData.id && b.status === 'resolved').length}
-                 memberDetails={memberDetails}
-                 onView={handleViewTeam}
-                 onEdit={handleEditTeam}
-                 variant="default"
-               />
-            );
-          })}
-        </div>
-      </div>
-
-             <TeamModal
-         isOpen={teamModalOpen}
-         onClose={() => {
-           setTeamModalOpen(false);
-           setSelectedTeam(null);
-         }}
-         onSave={handleSaveTeam}
-         team={selectedTeam}
-         mode={teamModalMode}
-       />
-
-       <TeamDetailsModal
-         isOpen={teamDetailsModalOpen}
-         onClose={() => {
-           setTeamDetailsModalOpen(false);
-           setSelectedTeam(null);
-         }}
-         team={selectedTeam}
-         managerName={selectedTeam ? managerNames[selectedTeam.managerId] : undefined}
-         teamLeadName={selectedTeam && selectedTeam.teamLeadId ? teamLeadNames[selectedTeam.teamLeadId] : undefined}
-         totalBugs={selectedTeam ? bugs.filter(b => b.projectId && projects.find(p => p.id === b.projectId)?.teamId === selectedTeam.id).length : 0}
-         bugsResolved={selectedTeam ? bugs.filter(b => b.projectId && projects.find(p => p.id === b.projectId)?.teamId === selectedTeam.id && b.status === 'resolved').length : 0}
-       />
     </div>
   );
 };

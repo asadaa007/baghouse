@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useProjects } from '../context/ProjectContext';
 import { useBugs } from '../context/BugContext';
+import { useAuth } from '../context/AuthContext';
 import Navigation from '../components/layout/Navigation';
-import Breadcrumb from '../components/common/Breadcrumb';
+import BreadcrumbNew from '../components/common/BreadcrumbNew';
 import Loading from '../components/common/Loading';
 import BugForm from '../components/dashboard/BugForm';
+import { projectService } from '../services/projectService';
 import { 
   Plus, 
   Bug, 
@@ -28,6 +30,7 @@ import {
   MessageSquare,
   Eye
 } from 'lucide-react';
+import { Button, IconButton, LinkButton } from '../components/common/buttons';
 import type { Bug as BugType, BugStatus } from '../types/bugs';
 
 interface KanbanColumn {
@@ -38,12 +41,56 @@ interface KanbanColumn {
 }
 
 const ProjectDetail = () => {
-  const { projectId } = useParams<{ projectId: string }>();
+  const { projectId, slug } = useParams<{ projectId?: string; slug?: string }>();
   const navigate = useNavigate();
   const { projects, loading: projectsLoading } = useProjects();
   const { bugs, loading: bugsLoading, deleteBug, updateBug } = useBugs();
+  const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const [project, setProject] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Role-based permissions
+  const canCreateBug = user?.role === 'super_admin' || user?.role === 'manager' || user?.role === 'team_lead';
   
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Find project by ID or slug
+  useEffect(() => {
+    const findProject = async () => {
+      setLoading(true);
+      try {
+        let foundProject = null;
+        
+        if (projectId) {
+          // Try to find by ID first
+          foundProject = projects.find(p => p.id === projectId);
+          if (!foundProject) {
+            // If not found in context, try to fetch from service
+            foundProject = await projectService.getProjectById(projectId);
+          }
+        } else if (slug) {
+          // Try to find by slug
+          foundProject = projects.find(p => p.slug === slug);
+          if (!foundProject) {
+            // If not found in context, try to fetch from service
+            foundProject = await projectService.getProjectBySlug(slug);
+          }
+        }
+        
+        setProject(foundProject);
+      } catch (error) {
+        console.error('Error finding project:', error);
+        setProject(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (projects.length > 0 || projectId || slug) {
+      findProject();
+    }
+  }, [projectId, slug, projects]);
   const [isBugFormOpen, setIsBugFormOpen] = useState(false);
   const [selectedBug, setSelectedBug] = useState<BugType | null>(null);
   const [filterStatus, setFilterStatus] = useState<BugStatus[]>([]);
@@ -54,10 +101,23 @@ const ProjectDetail = () => {
   const [showColumnDropdown, setShowColumnDropdown] = useState(false);
 
   // Find the current project
-  const project = projects.find(p => p.id === projectId);
+  // Project is now managed by state
+
+  // Auto-open bug form if ?newBug=1 and user can create
+  React.useEffect(() => {
+    if (searchParams.get('newBug') === '1' && canCreateBug) {
+      setIsBugFormOpen(true);
+    }
+  }, [searchParams, canCreateBug]);
   
   // Filter bugs for this project
-  const projectBugs = bugs.filter(bug => bug.projectId === projectId);
+  const projectBugs = bugs.filter(bug => bug.projectId === project?.id);
+  
+  // Debug logging
+  console.log('ProjectDetail - Project:', project);
+  console.log('ProjectDetail - Project ID:', project?.id);
+  console.log('ProjectDetail - All bugs:', bugs.map(b => ({ id: b.id, projectId: b.projectId, title: b.title })));
+  console.log('ProjectDetail - Project bugs:', projectBugs.map(b => ({ id: b.id, title: b.title })));
 
   // Apply search and filters
   const filteredBugs = projectBugs.filter(bug => {
@@ -106,7 +166,11 @@ const ProjectDetail = () => {
 
   const handleStatusChange = async (bugId: string, newStatus: BugStatus) => {
     try {
-      await updateBug(bugId, { status: newStatus });
+      await updateBug(bugId, { 
+        status: newStatus,
+        userId: user?.id,
+        userName: user?.name || user?.email
+      });
     } catch (error) {
       console.error('Error updating bug status:', error);
     }
@@ -194,7 +258,7 @@ const ProjectDetail = () => {
     setSearchTerm('');
   };
 
-  if (projectsLoading || bugsLoading) {
+  if (loading || projectsLoading || bugsLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
         <Navigation />
@@ -213,13 +277,13 @@ const ProjectDetail = () => {
           <div className="text-center">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Project Not Found</h2>
             <p className="text-gray-600 mb-4">The project you're looking for doesn't exist.</p>
-            <button
+            <Button
               onClick={() => navigate('/projects')}
-              className="btn-primary"
+              variant="primary"
+              icon={ArrowLeft}
             >
-              <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Projects
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -235,26 +299,30 @@ const ProjectDetail = () => {
         <div className="bg-white border-b border-gray-200 px-4 py-3 flex-shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <Breadcrumb 
+              <BreadcrumbNew 
                 items={[
-                  { label: 'Projects' },
+                  { label: 'Projects', href: '/projects' },
                   { label: project.name }
                 ]}
-                showBackButton={true}
+                showBackButton={false}
               />
             </div>
             
             <div className="flex items-center space-x-3">
-              <button
-                onClick={() => setIsBugFormOpen(true)}
-                className="btn-primary"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Bug
-              </button>
-              <button className="p-2 text-gray-400 hover:text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">
-                <Settings className="w-4 h-4" />
-              </button>
+              {canCreateBug && (
+                <Button
+                  onClick={() => setIsBugFormOpen(true)}
+                  variant="primary"
+                  icon={Plus}
+                >
+                  Add Bug
+                </Button>
+              )}
+              <IconButton
+                icon={Settings}
+                variant="default"
+                size="sm"
+              />
             </div>
           </div>
         </div>
@@ -458,7 +526,7 @@ const ProjectDetail = () => {
                       >
                         <div className="flex items-start justify-between mb-2">
                           <h4 className="font-medium text-gray-900 text-sm line-clamp-2 flex-1">
-                            #{bug.id.slice(-3)}: {bug.title}
+                            {bug.id.slice(-3)}: {bug.title}
                           </h4>
                         </div>
                         
@@ -620,41 +688,61 @@ const ProjectDetail = () => {
 
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-gray-700">ASSIGNED TO:</span>
-                  <button className="flex items-center text-sm text-primary hover:text-primary/80">
-                    <User className="w-4 h-4 mr-1" />
+                  <LinkButton
+                    to="#"
+                    variant="primary"
+                    size="sm"
+                    icon={User}
+                  >
                     {selectedBug.assignee || 'Assign user'}
-                  </button>
+                  </LinkButton>
                 </div>
 
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-gray-700">TAGS:</span>
-                  <button className="flex items-center text-sm text-primary hover:text-primary/80">
-                    <Tag className="w-4 h-4 mr-1" />
+                  <LinkButton
+                    to="#"
+                    variant="primary"
+                    size="sm"
+                    icon={Tag}
+                  >
                     + New tag
-                  </button>
+                  </LinkButton>
                 </div>
 
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-gray-700">DUE DATE:</span>
-                  <button className="flex items-center text-sm text-primary hover:text-primary/80">
-                    <Clock className="w-4 h-4 mr-1" />
+                  <LinkButton
+                    to="#"
+                    variant="primary"
+                    size="sm"
+                    icon={Clock}
+                  >
                     Select date
-                  </button>
+                  </LinkButton>
                 </div>
 
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-gray-700">ATTACHMENTS:</span>
-                  <button className="flex items-center text-sm text-primary hover:text-primary/80">
-                    <Paperclip className="w-4 h-4 mr-1" />
+                  <LinkButton
+                    to="#"
+                    variant="primary"
+                    size="sm"
+                    icon={Paperclip}
+                  >
                     Attach File
-                  </button>
+                  </LinkButton>
                 </div>
 
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-gray-700">TECHNICAL INFO:</span>
-                  <button className="text-sm text-primary hover:text-primary/80">
+                  <LinkButton
+                    to="#"
+                    variant="primary"
+                    size="sm"
+                  >
                     Show details
-                  </button>
+                  </LinkButton>
                 </div>
               </div>
 
@@ -662,9 +750,13 @@ const ProjectDetail = () => {
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-sm font-medium text-gray-700">COMMENTS:</span>
-                  <button className="text-sm text-primary hover:text-primary/80">
+                  <LinkButton
+                    to="#"
+                    variant="primary"
+                    size="sm"
+                  >
                     View log
-                  </button>
+                  </LinkButton>
                 </div>
                 
                 <div className="space-y-3 mb-4">
@@ -693,12 +785,12 @@ const ProjectDetail = () => {
                   />
                   <div className="flex items-center justify-between mt-2">
                     <div className="flex items-center space-x-2">
-                      <button className="px-3 py-1 bg-primary text-white rounded text-sm">
+                      <Button variant="primary" size="sm">
                         Add
-                      </button>
-                      <button className="px-3 py-1 border border-gray-300 rounded text-sm">
+                      </Button>
+                      <Button variant="outline" size="sm">
                         Cancel
-                      </button>
+                      </Button>
                     </div>
                     <div className="flex items-center space-x-2">
                       <Eye className="w-4 h-4 text-gray-400" />

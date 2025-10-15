@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
+import { Button } from '../components/common/buttons';
 
 const Register = () => {
   const [name, setName] = useState('');
@@ -194,13 +195,15 @@ const Register = () => {
             </div>
 
             <div>
-              <button
+              <Button
                 type="submit"
                 disabled={loading}
-                className="w-full btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                variant="primary"
+                fullWidth
+                loading={loading}
               >
                 {loading ? 'Creating account...' : 'Create account'}
-              </button>
+              </Button>
             </div>
           </form>
 

@@ -1,11 +1,14 @@
 
+import { useState, useEffect } from 'react';
 import { useTeams } from '../../context/TeamContext';
 import { useBugs } from '../../context/BugContext';
 import { useProjects } from '../../context/ProjectContext';
 import { useAuth } from '../../context/AuthContext';
 import StatsCard from './StatsCard';
+import ActivityFeed from './ActivityFeed';
 import Breadcrumb from '../common/Breadcrumb';
 import Loading from '../common/Loading';
+import { activityService, type ActivityItem } from '../../services/activityService';
 import { 
   User, 
   CheckCircle, 
@@ -24,7 +27,27 @@ const TeamMemberDashboard = () => {
   const { teams, loading: teamsLoading } = useTeams();
   const { bugs } = useBugs();
   const { projects } = useProjects();
+  const [activities, setActivities] = useState<ActivityItem[]>([]);
+  const [activitiesLoading, setActivitiesLoading] = useState(true);
 
+  // Fetch recent activities for this user
+  useEffect(() => {
+    const fetchActivities = async () => {
+      if (!user) return;
+      
+      try {
+        setActivitiesLoading(true);
+        const recentActivities = await activityService.getRecentActivities(user.id, 8);
+        setActivities(recentActivities);
+      } catch (error) {
+        console.error('Error fetching activities:', error);
+      } finally {
+        setActivitiesLoading(false);
+      }
+    };
+
+    fetchActivities();
+  }, [user]);
 
   // Filter bugs and projects assigned to this team member
   const assignedBugs = bugs.filter(bug => bug.assignee === user?.id);
@@ -35,14 +58,14 @@ const TeamMemberDashboard = () => {
   // Calculate personal stats
   const personalStats = {
     assignedBugs: assignedBugs.length,
-    resolvedBugs: assignedBugs.filter(bug => bug.status === 'resolved').length,
+    resolvedBugs: assignedBugs.filter(bug => bug.status === 'resolved' || bug.status === 'closed').length,
     openBugs: assignedBugs.filter(bug => bug.status === 'new' || bug.status === 'in-progress').length,
     criticalBugs: assignedBugs.filter(bug => bug.priority === 'critical').length,
     assignedProjects: assignedProjects.length,
     teamMembers: teams.length > 0 ? teams[0].members.length : 0,
     avgResolutionTime: 1.5, // TODO: Calculate actual average
     completionRate: assignedBugs.length > 0 ? 
-      Math.round((assignedBugs.filter(bug => bug.status === 'resolved').length / assignedBugs.length) * 100) : 0,
+      Math.round((assignedBugs.filter(bug => bug.status === 'resolved' || bug.status === 'closed').length / assignedBugs.length) * 100) : 0,
   };
 
   const stats = [
@@ -185,7 +208,7 @@ const TeamMemberDashboard = () => {
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-xs text-gray-500">
-                    <span>#{bug.id}</span>
+                    <span>{bug.id}</span>
                     <span className={`px-2 py-1 rounded-full ${
                       bug.status === 'resolved' ? 'bg-green-100 text-green-800' :
                       bug.status === 'in-progress' ? 'bg-blue-100 text-blue-800' :
@@ -233,7 +256,9 @@ const TeamMemberDashboard = () => {
                       {project.status}
                     </span>
                   </div>
-                  <p className="text-xs text-gray-600 mb-2">{project.description}</p>
+                  <p className="text-xs text-gray-600 mb-2">
+                    {project.shortDescription || 'No description'}
+                  </p>
                   <div className="flex items-center justify-between text-xs text-gray-500">
                     <span>Owner: {project.ownerName}</span>
                     <span>{project.members?.length || 0} members</span>
@@ -255,32 +280,12 @@ const TeamMemberDashboard = () => {
       {/* Personal Performance */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Recent Activity */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h3 className="text-xl font-semibold text-gray-900 mb-4">My Recent Activity</h3>
-          <div className="space-y-4">
-            <div className="flex items-center space-x-3">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <div className="flex-1">
-                <p className="text-sm font-medium text-gray-900">Bug resolved</p>
-                <p className="text-xs text-gray-500">2 hours ago</p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-3">
-              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-              <div className="flex-1">
-                <p className="text-sm font-medium text-gray-900">New bug assigned</p>
-                <p className="text-xs text-gray-500">1 day ago</p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-3">
-              <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-              <div className="flex-1">
-                <p className="text-sm font-medium text-gray-900">Project updated</p>
-                <p className="text-xs text-gray-500">2 days ago</p>
-              </div>
-            </div>
-          </div>
-        </div>
+        <ActivityFeed 
+          activities={activities}
+          loading={activitiesLoading}
+          showProject={true}
+          maxItems={6}
+        />
 
         {/* Quick Actions */}
         <div className="bg-white rounded-lg shadow-sm p-6">

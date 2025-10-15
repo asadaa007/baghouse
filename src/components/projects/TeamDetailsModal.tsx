@@ -252,7 +252,25 @@ const TeamDetailsModal: React.FC<TeamDetailsModalProps> = ({
                             {project.status}
                           </span>
                         </div>
-                        <p className="text-gray-600 mb-3">{project.description || 'No description available'}</p>
+                        <div className="text-gray-600 mb-3">
+                          {project.description ? (
+                            <div dangerouslySetInnerHTML={{ 
+                              __html: project.description
+                                .replace(/^### (.*$)/gim, '<h3 class="text-lg font-semibold text-gray-900 mt-2 mb-1">$1</h3>')
+                                .replace(/^## (.*$)/gim, '<h2 class="text-xl font-bold text-gray-900 mt-3 mb-2">$1</h2>')
+                                .replace(/^# (.*$)/gim, '<h1 class="text-2xl font-bold text-gray-900 mt-3 mb-2">$1</h1>')
+                                .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-gray-900">$1</strong>')
+                                .replace(/\*(.*?)\*/g, '<em class="italic text-gray-700">$1</em>')
+                                .replace(/`(.*?)`/g, '<code class="bg-gray-100 px-1 py-0.5 rounded text-xs font-mono text-gray-800">$1</code>')
+                                .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-blue-600 hover:text-blue-800 underline" target="_blank" rel="noopener noreferrer">$1</a>')
+                                .replace(/\n\n/g, '</p><p class="mb-2">')
+                                .replace(/\n/g, '<br>')
+                                .replace(/^(.*)$/gm, '<p class="mb-2">$1</p>')
+                            }} />
+                          ) : (
+                            'No description available'
+                          )}
+                        </div>
                         
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                           <div className="flex items-center space-x-2">

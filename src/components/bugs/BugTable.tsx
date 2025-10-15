@@ -1,7 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { 
-  Eye, 
   Edit, 
   Trash2,ChevronUp, 
   ChevronDown,
@@ -12,6 +10,7 @@ import {
   CheckSquare,
   Square
 } from 'lucide-react';
+import { Button, IconButton } from '../common/buttons';
 import BugViewModal from './BugViewModal';
 import type { Bug } from '../../types/bugs';
 
@@ -179,13 +178,14 @@ const BugTable: React.FC<BugTableProps> = ({
                 {selectedBugs.size} bug{selectedBugs.size !== 1 ? 's' : ''} selected
               </span>
               <div className="flex items-center space-x-2">
-                <button
+                <Button
                   onClick={handleBulkDelete}
-                  className="flex items-center px-3 py-1 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
+                  variant="danger"
+                  size="sm"
+                  icon={Trash2}
                 >
-                  <Trash2 className="w-4 h-4 mr-1" />
                   Delete Selected
-                </button>
+                </Button>
               </div>
             </div>
           </div>
@@ -197,58 +197,62 @@ const BugTable: React.FC<BugTableProps> = ({
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left">
-                  <button
+                  <IconButton
                     onClick={handleSelectAll}
-                    className="flex items-center text-gray-400 hover:text-gray-600"
-                  >
-                    {selectedBugs.size === bugs.length ? (
-                      <CheckSquare className="w-4 h-4" />
-                    ) : (
-                      <Square className="w-4 h-4" />
-                    )}
-                  </button>
+                    variant="ghost"
+                    size="sm"
+                    icon={selectedBugs.size === bugs.length ? CheckSquare : Square}
+                  />
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Bug
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <button
+                  <Button
                     onClick={() => handleSort('status')}
-                    className="flex items-center hover:text-gray-700"
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs font-medium text-gray-500 uppercase tracking-wider hover:text-gray-700"
                   >
                     Status
                     <SortIcon field="status" />
-                  </button>
+                  </Button>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <button
+                  <Button
                     onClick={() => handleSort('priority')}
-                    className="flex items-center hover:text-gray-700"
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs font-medium text-gray-500 uppercase tracking-wider hover:text-gray-700"
                   >
                     Priority
                     <SortIcon field="priority" />
-                  </button>
+                  </Button>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <button
+                  <Button
                     onClick={() => handleSort('assignee')}
-                    className="flex items-center hover:text-gray-700"
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs font-medium text-gray-500 uppercase tracking-wider hover:text-gray-700"
                   >
                     Team Assignee
                     <SortIcon field="assignee" />
-                  </button>
+                  </Button>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   External Assignee
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <button
+                  <Button
                     onClick={() => handleSort('createdAt')}
-                    className="flex items-center hover:text-gray-700"
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs font-medium text-gray-500 uppercase tracking-wider hover:text-gray-700"
                   >
                     Created
                     <SortIcon field="createdAt" />
-                  </button>
+                  </Button>
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
@@ -256,31 +260,30 @@ const BugTable: React.FC<BugTableProps> = ({
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {sortedBugs.map((bug) => (
-                <tr key={bug.id} className="hover:bg-gray-50">
+              {sortedBugs.map((bug, index) => (
+                <tr key={`${bug.id}-${bug.projectId}-${index}`} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <button
+                    <IconButton
                       onClick={() => handleSelectBug(bug.id)}
-                      className="flex items-center text-gray-400 hover:text-gray-600"
-                    >
-                      {selectedBugs.has(bug.id) ? (
-                        <CheckSquare className="w-4 h-4" />
-                      ) : (
-                        <Square className="w-4 h-4" />
-                      )}
-                    </button>
+                      variant="ghost"
+                      size="sm"
+                      icon={selectedBugs.has(bug.id) ? CheckSquare : Square}
+                    />
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className={`w-3 h-3 rounded-full ${getPriorityColor(bug.priority)} mr-3`} />
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium text-gray-900">
-                          <Link to={`/bugs/${bug.id}`} className="hover:text-primary transition-colors">
+                          <button
+                            onClick={() => handleViewBug(bug)}
+                            className="text-left hover:text-primary transition-colors cursor-pointer"
+                          >
                             {bug.title}
-                          </Link>
+                          </button>
                         </div>
                         <div className="flex items-center space-x-4 mt-1">
-                          <span className="text-sm text-gray-500">#{bug.customId || bug.id}</span>
+                          <span className="text-sm text-gray-500">{bug.customId || bug.id}</span>
                           {bug.projectName && (
                             <span className="text-sm text-gray-500">{bug.projectName}</span>
                           )}
@@ -349,27 +352,21 @@ const BugTable: React.FC<BugTableProps> = ({
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center justify-end space-x-2">
-                      <button
-                        onClick={() => handleViewBug(bug)}
-                        className="text-gray-400 hover:text-gray-600 transition-colors"
-                        title="View bug"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                      <button
+                      <IconButton
                         onClick={() => handleEditBug(bug)}
-                        className="text-gray-400 hover:text-gray-600 transition-colors"
+                        variant="ghost"
+                        size="sm"
+                        icon={Edit}
                         title="Edit bug"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
+                      />
+                      <IconButton
                         onClick={() => onDeleteBug(bug.id)}
-                        className="text-gray-400 hover:text-red-600 transition-colors"
+                        variant="ghost"
+                        size="sm"
+                        icon={Trash2}
                         title="Delete bug"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                        className="text-gray-400 hover:text-red-600"
+                      />
                     </div>
                   </td>
                 </tr>
