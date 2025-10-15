@@ -6,10 +6,15 @@ import Register from '../pages/Register';
 import Dashboard from '../pages/Dashboard';
 import Projects from '../pages/Projects';
 import ProjectDetail from '../pages/ProjectDetail';
+import ProjectPreview from '../pages/ProjectPreview';
+import ProjectAdd from '../pages/ProjectAdd';
+import ProjectEdit from '../pages/ProjectEdit';
 import Bugs from '../pages/Bugs';
 import BugDetail from '../pages/BugDetail';
 import Settings from '../pages/Settings';
 import UserManagement from '../pages/UserManagement';
+import Teams from '../pages/Teams';
+import ButtonTest from '../pages/ButtonTest';
 import RoleBasedRoute from '../components/common/RoleBasedRoute';
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -62,6 +67,54 @@ const AppRouter = () => {
         }
       />
       <Route
+        path="/projects/:projectId/preview"
+        element={
+          <ProtectedRoute>
+            <ProjectPreview />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/p/:slug"
+        element={
+          <ProtectedRoute>
+            <ProjectDetail />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/p/:slug/preview"
+        element={
+          <ProtectedRoute>
+            <ProjectPreview />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/projects/add"
+        element={
+          <RoleBasedRoute allowedRoles={['super_admin', 'manager']}>
+            <ProjectAdd />
+          </RoleBasedRoute>
+        }
+      />
+      <Route
+        path="/projects/:projectId/edit"
+        element={
+          <RoleBasedRoute allowedRoles={['super_admin', 'manager', 'team_lead']}>
+            <ProjectEdit />
+          </RoleBasedRoute>
+        }
+      />
+      <Route
+        path="/p/:slug/edit"
+        element={
+          <RoleBasedRoute allowedRoles={['super_admin', 'manager', 'team_lead']}>
+            <ProjectEdit />
+          </RoleBasedRoute>
+        }
+      />
+      <Route
         path="/bugs"
         element={
           <ProtectedRoute>
@@ -93,6 +146,17 @@ const AppRouter = () => {
           </RoleBasedRoute>
         }
       />
+      <Route
+        path="/teams"
+        element={
+          <RoleBasedRoute allowedRoles={['super_admin', 'manager']}>
+            <Teams />
+          </RoleBasedRoute>
+        }
+      />
+
+      {/* Library Routes */}
+      <Route path="/library" element={<ProtectedRoute><ButtonTest /></ProtectedRoute>} />
 
       {/* Catch all route */}
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -29,6 +29,10 @@ const BugForm: React.FC<BugFormProps> = ({ isOpen, onClose, bug, projectId }) =>
   const [allUsers, setAllUsers] = useState<AppUser[]>([]);
   const [teamMembers, setTeamMembers] = useState<AppUser[]>([]);
 
+  // Role-based permissions
+  const canCreateBug = user?.role === 'super_admin' || user?.role === 'manager' || user?.role === 'team_lead';
+  const canAssignBug = user?.role === 'super_admin' || user?.role === 'manager' || user?.role === 'team_lead';
+
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -73,9 +77,13 @@ const BugForm: React.FC<BugFormProps> = ({ isOpen, onClose, bug, projectId }) =>
         const bugData = {
           ...formData,
           reporter: user?.id || '',
+          reporterName: user?.name || user?.email || '',
+          userId: user?.id || '',
+          userName: user?.name || user?.email || '',
           labels: [],
           attachments: attachments,
           comments: [],
+          history: [],
         };
 
         // Only include assignee if it's not empty
@@ -182,6 +190,36 @@ const BugForm: React.FC<BugFormProps> = ({ isOpen, onClose, bug, projectId }) =>
 
   const selectedProject = projects.find(p => p.id === formData.projectId);
 
+  // Check if user has permission to create/edit bugs
+  if (!canCreateBug) {
+    return (
+      <Modal
+        isOpen={isOpen}
+        onClose={onClose}
+        title="Access Denied"
+        size="md"
+      >
+        <div className="text-center py-8">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Access Denied</h3>
+          <p className="text-gray-600 mb-6">
+            You don't have permission to create or edit bugs. Only admins, managers, and team leads can create bugs.
+          </p>
+          <button
+            onClick={onClose}
+            className="btn-primary"
+          >
+            Close
+          </button>
+        </div>
+      </Modal>
+    );
+  }
+
   return (
     <Modal
       isOpen={isOpen}
@@ -214,11 +252,6 @@ const BugForm: React.FC<BugFormProps> = ({ isOpen, onClose, bug, projectId }) =>
               </option>
             ))}
           </select>
-          {formData.projectId && selectedProject && (
-            <p className="text-sm text-gray-500 mt-1">
-              Project: {selectedProject.name} • {selectedProject.description}
-            </p>
-          )}
         </div>
 
         {/* Bug Title */}
@@ -283,11 +316,17 @@ const BugForm: React.FC<BugFormProps> = ({ isOpen, onClose, bug, projectId }) =>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Team Assignee
+              {!canAssignBug && (
+                <span className="text-xs text-gray-500 ml-2">(Read-only - Only admins, managers, and team leads can assign)</span>
+              )}
             </label>
             <select
               value={formData.assignee}
               onChange={(e) => handleChange('assignee', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+              disabled={!canAssignBug}
+              className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent ${
+                !canAssignBug ? 'bg-gray-100 cursor-not-allowed' : ''
+              }`}
             >
               <option value="">Select team member</option>
               {teamMembers.map((member) => (
@@ -308,11 +347,17 @@ const BugForm: React.FC<BugFormProps> = ({ isOpen, onClose, bug, projectId }) =>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             External Assignee (Optional)
+            {!canAssignBug && (
+              <span className="text-xs text-gray-500 ml-2">(Read-only - Only admins, managers, and team leads can assign)</span>
+            )}
           </label>
           <select
             value={formData.externalAssignee}
             onChange={(e) => handleChange('externalAssignee', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+            disabled={!canAssignBug}
+            className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent ${
+              !canAssignBug ? 'bg-gray-100 cursor-not-allowed' : ''
+            }`}
           >
             <option value="">Select external team member</option>
             {allUsers.filter(u => u.role === 'team_member' && u.teamId !== selectedProject?.teamId).map((user) => (

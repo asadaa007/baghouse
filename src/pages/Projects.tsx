@@ -1,25 +1,26 @@
 import{ useState } from 'react';
-import { Plus, Search,Grid, List, RotateCcw } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, Search,Grid, List, RefreshCw } from 'lucide-react';
+import { Button, IconButton } from '../components/common/buttons';
 import { useProjects } from '../context/ProjectContext';
 import { useBugs } from '../context/BugContext';
 import type { Project } from '../types/projects';
 import Navigation from '../components/layout/Navigation';
 import ProjectCard from '../components/projects/ProjectCard';
-import ProjectModal from '../components/projects/ProjectModal';
 import ProjectSettingsModal from '../components/projects/ProjectSettingsModal';
 import TeamModal from '../components/projects/TeamModal';
-import Breadcrumb from '../components/common/Breadcrumb';
+import BreadcrumbNew from '../components/common/BreadcrumbNew';
 import { useAuth } from '../context/AuthContext';
 import { useTeams } from '../context/TeamContext';
-import { getTeamById, updateTeam } from '../services/teamService';
+import { updateTeam } from '../services/teamService';
 
 const Projects = () => {
+  const navigate = useNavigate();
   const { 
     projects, 
     loading, 
     error, 
     projectStats, 
-    createProject, 
     updateProject, 
     deleteProject, 
     refreshProjects} = useProjects();
@@ -28,21 +29,21 @@ const Projects = () => {
   const { teams } = useTeams();
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [showModal, setShowModal] = useState(false);
-  const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
-  const [selectedProject, setSelectedProject] = useState<Project | undefined>();
 
   const [status, setStatus] = useState<'all' | Project['status']>('all');
   const [team, setTeam] = useState<string>('');
   const [assignedOnly, setAssignedOnly] = useState<boolean>(false);
+  
+
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsProject, setSettingsProject] = useState<Project | null>(null);
   const [teamModalOpen, setTeamModalOpen] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState<any>(null);
-  const [teamModalMode, setTeamModalMode] = useState<'create' | 'edit'>('edit');
+  const [teamModalMode] = useState<'create' | 'edit'>('edit');
 
   const canCreateProjects = user?.role === 'super_admin' || user?.role === 'manager';
+
 
   const canOpenSettings = (project: Project) => {
     if (!user) return false;
@@ -66,16 +67,9 @@ const Projects = () => {
   };
 
   const handleCreateProject = () => {
-    setModalMode('create');
-    setSelectedProject(undefined);
-    setShowModal(true);
+    navigate('/projects/add');
   };
 
-  const handleEditProject = (project: Project) => {
-    setModalMode('edit');
-    setSelectedProject(project);
-    setShowModal(true);
-  };
 
   const handleDeleteProject = async (projectId: string) => {
     if (!confirm('Are you sure you want to delete this project? This action cannot be undone.')) {
@@ -90,18 +84,6 @@ const Projects = () => {
     }
   };
 
-  const handleSaveProject = async (projectData: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>) => {
-    try {
-      if (modalMode === 'create') {
-        await createProject(projectData);
-      } else if (selectedProject) {
-        await updateProject(selectedProject.id, projectData);
-      }
-    } catch (error) {
-      console.error('Error saving project:', error);
-      throw error;
-    }
-  };
 
 
 
@@ -110,19 +92,6 @@ const Projects = () => {
     setSettingsProject(null);
   };
 
-  const handleEditTeam = async (teamId: string) => {
-    try {
-      const team = await getTeamById(teamId);
-      if (team) {
-        setSelectedTeam(team);
-        setTeamModalMode('edit');
-        setTeamModalOpen(true);
-      }
-    } catch (error) {
-      console.error('Error loading team:', error);
-      alert('Failed to load team details');
-    }
-  };
 
   const handleSaveTeam = async (teamData: any) => {
     try {
@@ -157,15 +126,16 @@ const Projects = () => {
     const projectBugs = bugs.filter(bug => bug.projectId === projectId);
     return {
       total: projectBugs.length,
-      open: projectBugs.filter(bug => bug.status === 'new' || bug.status === 'in-progress').length,
-      resolved: projectBugs.filter(bug => bug.status === 'resolved').length,
+      // Treat new, in-progress, and review as open
+      open: projectBugs.filter(bug => bug.status === 'new' || bug.status === 'in-progress' || bug.status === 'review').length,
+      // Treat resolved and closed as resolved/completed
+      resolved: projectBugs.filter(bug => bug.status === 'resolved' || bug.status === 'closed').length,
       critical: projectBugs.filter(bug => bug.priority === 'critical').length};
   };
 
   const filteredProjects = projects
     .filter(project =>
-      project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      project.description.toLowerCase().includes(searchTerm.toLowerCase())
+      project.name.toLowerCase().includes(searchTerm.toLowerCase())
     )
     .filter(project => (status=== 'all' ? true : project.status === status))
     .filter(project => (team ? project.teamId === team : true))
@@ -191,57 +161,51 @@ const Projects = () => {
       <Navigation />
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Breadcrumb */}
+        <BreadcrumbNew items={[{ label: 'Projects' }]} showBackButton={false} />
+        
         {/* Page Header */}
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Projects</h1>
-            <p className="text-gray-600 mt-1">Manage your projects and teams</p>
+            <div className="flex items-center space-x-3">
+              <h1 className="text-3xl font-bold text-gray-900">Projects</h1>
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                {projects.length}
+              </span>
+            </div>
           </div>
-          {canCreateProjects && (
-            <button onClick={handleCreateProject} className="btn-primary">
-              <Plus className="w-4 h-4 mr-2" />
-              New Project
-            </button>
-          )}
+          <div className="flex items-center space-x-4">
+            {/* View Mode Toggle */}
+            <div className="flex items-center space-x-2">
+              <IconButton
+                onClick={() => setViewMode('grid')}
+                icon={Grid}
+                variant={viewMode === 'grid' ? 'default' : 'ghost'}
+                size="sm"
+                title="Grid View"
+              />
+              <IconButton
+                onClick={() => setViewMode('list')}
+                icon={List}
+                variant={viewMode === 'list' ? 'default' : 'ghost'}
+                size="sm"
+                title="List View"
+              />
+            </div>
+            {canCreateProjects && (
+              <Button 
+                onClick={handleCreateProject} 
+                icon={Plus}
+                variant="primary"
+              >
+                New Project
+              </Button>
+            )}
+          </div>
         </div>
-
-        {/* Breadcrumb */}
-        <Breadcrumb items={[{ label: 'Projects' }]} showBackButton={true} />
         
         {/* Stats ands */}
         <div className="mb-8">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-1">
-                {projects.length} Project{projects.length !== 1 ? 's' : ''}
-              </h2>
-              <p className="text-gray-600">Manage your projects and team members</p>
-            </div>
-            
-            {/* View Mode Toggle */}
-            <div className="flex items-center space-x-2 mt-4 sm:mt-0">
-              <button
-                onClick={() => setViewMode('grid')}
-                className={`p-2 rounded-lg transition-colors ${
-                  viewMode === 'grid' 
-                    ? 'bg-primary text-white' 
-                    : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-                }`}
-              >
-                <Grid className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setViewMode('list')}
-                className={`p-2 rounded-lg transition-colors ${
-                  viewMode === 'list' 
-                    ? 'bg-primary text-white' 
-                    : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-                }`}
-              >
-                <List className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
 
           {/* Search ands */}
           <div className="flex flex-col lg:flex-row gap-4">
@@ -281,23 +245,26 @@ const Projects = () => {
                 ))}
               </select>
 
-              <label className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-lg bg-white cursor-pointer select-none text-sm">
-                <input
-                  type="checkbox"
-                  checked={assignedOnly}
-                  onChange={(e) => setAssignedOnly(e.target.checked)}
-                  className="mr-2 rounded border-gray-300 text-primary focus:ring-primary"
-                />
-                Assigned to me
-              </label>
+              {user?.role === 'team_member' && (
+                <label className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-lg bg-white cursor-pointer select-none text-sm">
+                  <input
+                    type="checkbox"
+                    checked={assignedOnly}
+                    onChange={(e) => setAssignedOnly(e.target.checked)}
+                    className="mr-2 rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                  Assigned to me
+                </label>
+              )}
 
-              <button
-                type="button"
+              <Button
                 onClick={resets}
-                className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-50"
+                variant="outline"
+                icon={RefreshCw}
+                size="sm"
               >
-                <RotateCcw className="w-4 h-4 mr-2" /> Reset
-              </button>
+                Reset
+              </Button>
             </div>
           </div>
         </div>
@@ -324,10 +291,14 @@ const Projects = () => {
                 : 'Get started by creating your first project'}
             </p>
             {!searchTerm && !status && !team && !assignedOnly && canCreateProjects && (
-              <button onClick={handleCreateProject} className="btn-primary">
-                <Plus className="w-4 h-4 mr-2" />
+              <Button 
+                onClick={handleCreateProject} 
+                icon={Plus}
+                variant="primary"
+                size="lg"
+              >
                 Create Your First Project
-              </button>
+              </Button>
             )}
           </div>
         ) : (
@@ -341,23 +312,14 @@ const Projects = () => {
                 project={project}
                 bugCount={projectStats[project.id] || 0}
                 bugStats={getProjectBugStats(project.id)}
-                onEdit={handleEditProject}
                 onDelete={handleDeleteProject}
                 onSettings={handleOpenSettings}
-                onEditTeam={handleEditTeam}
               />
             ))}
           </div>
         )}
       </div>
 
-      <ProjectModal
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-        onSave={handleSaveProject}
-        project={selectedProject}
-        mode={modalMode}
-      />
 
       <ProjectSettingsModal
         isOpen={settingsOpen}

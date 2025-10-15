@@ -14,6 +14,7 @@ import {
   UserCheck
 } from 'lucide-react';
 import type { Team } from '../../types/auth';
+import { Button, IconButton } from './buttons';
 
 interface TeamCardProps {
   team: Team;
@@ -131,18 +132,24 @@ const TeamCard: React.FC<TeamCardProps> = ({
 
           {showActions && (
             <div className="flex space-x-2 pt-4 border-t border-gray-100">
-              <button 
+              <Button 
                 onClick={() => onView?.(team)}
-                className="flex-1 px-3 py-2 text-xs font-medium bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors"
+                variant="ghost"
+                size="sm"
+                fullWidth
+                className="bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200"
               >
                 Details
-              </button>
-              <button 
+              </Button>
+              <Button 
                 onClick={() => onViewPerformance?.(team)}
-                className="flex-1 px-3 py-2 text-xs font-medium bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors"
+                variant="ghost"
+                size="sm"
+                fullWidth
+                className="bg-green-50 text-green-700 hover:bg-green-100 border-green-200"
               >
                 Report
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -165,31 +172,31 @@ const TeamCard: React.FC<TeamCardProps> = ({
             </div>
             <div className="flex items-center space-x-2">
               {onView && (
-                <button 
+                <IconButton 
                   onClick={() => onView(team)}
-                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" 
+                  icon={Eye}
+                  variant="ghost"
+                  size="sm"
                   title="View Details"
-                >
-                  <Eye className="w-4 h-4" />
-                </button>
+                />
               )}
               {onEdit && (
-                <button 
+                <IconButton 
                   onClick={() => onEdit(team)}
-                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" 
+                  icon={Edit}
+                  variant="ghost"
+                  size="sm"
                   title="Edit Team"
-                >
-                  <Edit className="w-4 h-4" />
-                </button>
+                />
               )}
               {onSettings && (
-                <button 
+                <IconButton 
                   onClick={() => onSettings(team)}
-                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" 
+                  icon={Settings}
+                  variant="ghost"
+                  size="sm"
                   title="Team Settings"
-                >
-                  <Settings className="w-4 h-4" />
-                </button>
+                />
               )}
             </div>
           </div>
@@ -226,31 +233,40 @@ const TeamCard: React.FC<TeamCardProps> = ({
           {showActions && (
             <div className="flex space-x-2 pt-4 border-t border-gray-100">
               {onAddMember && (
-                <button 
+                <Button 
                   onClick={() => onAddMember(team)}
-                  className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors"
+                  variant="ghost"
+                  icon={UserPlus}
+                  size="sm"
+                  fullWidth
+                  className="bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200"
                 >
-                  <UserPlus className="w-4 h-4 mr-2" />
                   Add Member
-                </button>
+                </Button>
               )}
               {onViewPerformance && (
-                <button 
+                <Button 
                   onClick={() => onViewPerformance(team)}
-                  className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors"
+                  variant="ghost"
+                  icon={BarChart3}
+                  size="sm"
+                  fullWidth
+                  className="bg-green-50 text-green-700 hover:bg-green-100 border-green-200"
                 >
-                  <BarChart3 className="w-4 h-4 mr-2" />
                   Performance
-                </button>
+                </Button>
               )}
               {onCommunicate && (
-                <button 
+                <Button 
                   onClick={() => onCommunicate(team)}
-                  className="flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors"
+                  variant="ghost"
+                  icon={MessageSquare}
+                  size="sm"
+                  fullWidth
+                  className="bg-purple-50 text-purple-700 hover:bg-purple-100 border-purple-200"
                 >
-                  <MessageSquare className="w-4 h-4 mr-2" />
                   Communicate
-                </button>
+                </Button>
               )}
             </div>
           )}
@@ -268,22 +284,22 @@ const TeamCard: React.FC<TeamCardProps> = ({
           <h4 className="text-lg font-semibold text-gray-900">{team.name}</h4>
           <div className="flex items-center space-x-2">
             {onView && (
-              <button 
+              <IconButton 
                 onClick={() => onView(team)}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" 
+                icon={Eye}
+                variant="ghost"
+                size="sm"
                 title="View Team Details"
-              >
-                <Eye className="w-4 h-4" />
-              </button>
+              />
             )}
             {onEdit && (
-              <button 
+              <IconButton 
                 onClick={() => onEdit(team)}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" 
+                icon={Edit}
+                variant="ghost"
+                size="sm"
                 title="Edit Team"
-              >
-                <Edit className="w-4 h-4" />
-              </button>
+              />
             )}
           </div>
         </div>

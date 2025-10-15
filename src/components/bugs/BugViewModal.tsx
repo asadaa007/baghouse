@@ -102,8 +102,8 @@ const BugViewModal: React.FC<BugViewModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={`Bug #${bug.customId || bug.id}`}
-      size="xl"
+      title={`Bug ${bug.customId || bug.id}`}
+      size="full"
     >
       <div className="space-y-6">
         {/* Header */}
@@ -296,6 +296,55 @@ const BugViewModal: React.FC<BugViewModalProps> = ({
             ))}
           </div>
         </div>
+
+        {/* Bug History */}
+        {bug.history && bug.history.length > 0 && (
+          <div>
+            <h3 className="text-sm font-medium text-gray-700 mb-4 flex items-center">
+              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              History ({bug.history.length})
+            </h3>
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {bug.history
+                .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                .map((entry) => (
+                  <div key={entry.id} className="bg-gray-50 rounded-lg p-4 border-l-4 border-blue-200">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center">
+                        <User className="w-4 h-4 text-gray-400 mr-2" />
+                        <span className="text-sm font-medium text-gray-900">
+                          {entry.userName || 'System'}
+                        </span>
+                        <span className="text-sm text-gray-600 ml-2">
+                          {entry.action}
+                        </span>
+                      </div>
+                      <span className="text-xs text-gray-500">
+                        {formatDate(entry.createdAt)}
+                      </span>
+                    </div>
+                    {entry.field && (
+                      <div className="text-sm text-gray-700">
+                        <span className="font-medium">{entry.field}:</span>
+                        {entry.oldValue && (
+                          <span className="text-red-600 line-through ml-1">
+                            {entry.oldValue}
+                          </span>
+                        )}
+                        {entry.newValue && (
+                          <span className="text-green-600 ml-1">
+                            → {entry.newValue}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
       </div>
     </Modal>
   );

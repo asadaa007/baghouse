@@ -121,7 +121,7 @@ const RecentBugsList: React.FC<RecentBugsListProps> = ({
                     {bug.title}
                   </h4>
                   <div className="flex items-center space-x-4 mt-1">
-                    <span className="text-sm text-gray-500">#{bug.id}</span>
+                    <span className="text-sm text-gray-500">{bug.id}</span>
                     {bug.projectName && (
                       <span className="text-sm text-gray-500">{bug.projectName}</span>
                     )}

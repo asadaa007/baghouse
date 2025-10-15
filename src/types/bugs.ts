@@ -16,9 +16,12 @@ export interface Bug {
   labels: string[];
   attachments: Attachment[];
   comments: Comment[];
+  history: BugHistoryEntry[];
   createdAt: Date;
   updatedAt: Date;
   resolvedAt?: Date;
+  userId?: string;
+  userName?: string;
 }
 
 export type BugStatus = 'new' | 'in-progress' | 'review' | 'resolved' | 'closed';
@@ -43,14 +46,25 @@ export interface Comment {
   updatedAt: Date;
 }
 
+export interface BugHistoryEntry {
+  id: string;
+  action: string;
+  field?: string;
+  oldValue?: string;
+  newValue?: string;
+  userId: string;
+  userName?: string;
+  createdAt: Date;
+}
+
 export interface BugFilters {
   status?: BugStatus[];
   priority?: BugPriority[];
   assignee?: string;
   labels?: string[];
-  projectId?: string;
+  projectName?: string;
   dateRange?: {
-    start: Date;
-    end: Date;
+    start?: Date;
+    end?: Date;
   };
 } 

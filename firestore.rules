@@ -72,6 +72,11 @@ service cloud.firestore {
       allow read, write: if isAuthenticated();
     }
 
+    // Activities collection
+    match /activities/{activityId} {
+      allow read, write: if isAuthenticated();
+    }
+
     // Teams collection
     match /teams/{teamId} {
       allow read, write: if isAuthenticated();

@@ -3,6 +3,8 @@ import type { Bug } from './bugs';
 export interface Project {
   id: string;
   name: string;
+  slug: string; // URL-friendly slug
+  shortDescription?: string;
   description: string;
   owner: string;
   ownerName?: string;
