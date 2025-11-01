@@ -3,17 +3,22 @@ import { useNavigate } from 'react-router-dom';
 import { useProjects } from '../context/ProjectContext';
 import { useTeams } from '../context/TeamContext';
 import { useAuth } from '../context/AuthContext';
+import { getAllUsers } from '../services/userService';
 import Navigation from '../components/layout/Navigation';
 import BreadcrumbNew from '../components/common/BreadcrumbNew';
 import { 
   ArrowLeft,
   Save,
   X,
-  AlertCircle
+  AlertCircle,
+  Plus,
+  Trash2,
+  ChevronUp,
+  ChevronDown
 } from 'lucide-react';
-import { Button } from '../components/common/buttons';
+import { Button, IconButton } from '../components/common/buttons';
 import MarkdownEditor from '../components/common/MarkdownEditor';
-import type { ProjectSettings } from '../types/projects';
+import type { ProjectSettings, ProjectDetail } from '../types/projects';
 
 const ProjectAdd = () => {
   const navigate = useNavigate();
@@ -27,6 +32,12 @@ const ProjectAdd = () => {
     description: '',
     status: 'active' as const,
     teamId: '' as string | undefined,
+    teamLeadIds: [] as string[],
+    startDate: '',
+    expectedEndDate: '',
+    duration: '',
+    technologyStack: [] as string[],
+    developmentEnvironment: [] as string[],
     settings: {
       allowPublicAccess: false,
       requireApproval: false,
@@ -34,10 +45,14 @@ const ProjectAdd = () => {
       customFields: []
     } as ProjectSettings
   });
+  
+  const [details, setDetails] = useState<ProjectDetail[]>([]);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [availableTeams, setAvailableTeams] = useState(teams);
+  const [availableTeamLeads, setAvailableTeamLeads] = useState<any[]>([]);
+  const [teamLeadNames, setTeamLeadNames] = useState<{[key: string]: string}>({});
 
   // Role-based permissions
   const canCreateProjects = user?.role === 'super_admin' || user?.role === 'manager';
@@ -46,7 +61,65 @@ const ProjectAdd = () => {
     setAvailableTeams(teams);
   }, [teams]);
 
-  const handleChange = (field: string, value: string | boolean | undefined) => {
+  // Load team lead names for display
+  useEffect(() => {
+    const loadTeamLeadNames = async () => {
+      try {
+        const users = await getAllUsers();
+        const namesMap: {[key: string]: string} = {};
+        users.forEach(user => {
+          namesMap[user.id] = user.name;
+        });
+        setTeamLeadNames(namesMap);
+      } catch (error) {
+        console.error('Error loading team lead names:', error);
+      }
+    };
+    
+    loadTeamLeadNames();
+  }, []);
+
+  // Update available team leads when team selection changes
+  useEffect(() => {
+    if (formData.teamId) {
+      const selectedTeam = teams.find(team => team.id === formData.teamId);
+      if (selectedTeam && selectedTeam.teamLeadIds) {
+        const teamLeads = selectedTeam.teamLeadIds.map(leadId => ({
+          id: leadId,
+          name: teamLeadNames[leadId] || 'Unknown'
+        }));
+        setAvailableTeamLeads(teamLeads);
+        
+        // Auto-select if there's only one team lead
+        if (teamLeads.length === 1) {
+          setFormData(prev => ({
+            ...prev,
+            teamLeadIds: [teamLeads[0].id]
+          }));
+        } else {
+          // Clear selection if team changes
+          setFormData(prev => ({
+            ...prev,
+            teamLeadIds: []
+          }));
+        }
+      } else {
+        setAvailableTeamLeads([]);
+        setFormData(prev => ({
+          ...prev,
+          teamLeadIds: []
+        }));
+      }
+    } else {
+      setAvailableTeamLeads([]);
+      setFormData(prev => ({
+        ...prev,
+        teamLeadIds: []
+      }));
+    }
+  }, [formData.teamId, teams, teamLeadNames]);
+
+  const handleChange = (field: string, value: string | boolean | string[] | undefined) => {
     if (field.includes('.')) {
       const [parent, child] = field.split('.');
       setFormData(prev => ({
@@ -64,6 +137,78 @@ const ProjectAdd = () => {
     }
   };
 
+  const handleTeamLeadToggle = (teamLeadId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      teamLeadIds: prev.teamLeadIds.includes(teamLeadId)
+        ? prev.teamLeadIds.filter(id => id !== teamLeadId)
+        : [...prev.teamLeadIds, teamLeadId]
+    }));
+  };
+
+  // Detail management functions
+  const addDetail = () => {
+    const newDetail: ProjectDetail = {
+      id: `detail-${Date.now()}`,
+      title: '',
+      content: '',
+      order: details.length,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    setDetails(prev => [...prev, newDetail]);
+  };
+
+  const updateDetail = (id: string, field: 'title' | 'content', value: string) => {
+    setDetails(prev => prev.map(detail => 
+      detail.id === id 
+        ? { ...detail, [field]: value, updatedAt: new Date() }
+        : detail
+    ));
+  };
+
+  const deleteDetail = (id: string) => {
+    setDetails(prev => {
+      const filtered = prev.filter(detail => detail.id !== id);
+      // Reorder remaining details
+      return filtered.map((detail, index) => ({
+        ...detail,
+        order: index
+      }));
+    });
+  };
+
+  const moveDetailUp = (id: string) => {
+    setDetails(prev => {
+      const index = prev.findIndex(detail => detail.id === id);
+      if (index <= 0) return prev;
+      
+      const newDetails = [...prev];
+      [newDetails[index - 1], newDetails[index]] = [newDetails[index], newDetails[index - 1]];
+      
+      // Update order
+      return newDetails.map((detail, idx) => ({
+        ...detail,
+        order: idx
+      }));
+    });
+  };
+
+  const moveDetailDown = (id: string) => {
+    setDetails(prev => {
+      const index = prev.findIndex(detail => detail.id === id);
+      if (index >= prev.length - 1) return prev;
+      
+      const newDetails = [...prev];
+      [newDetails[index], newDetails[index + 1]] = [newDetails[index + 1], newDetails[index]];
+      
+      // Update order
+      return newDetails.map((detail, idx) => ({
+        ...detail,
+        order: idx
+      }));
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,7 +226,14 @@ const ProjectAdd = () => {
         owner: user?.id || '',
         slug: '', // Will be generated by the service
         members: [],
-        settings: formData.settings
+        details: details,
+        settings: formData.settings,
+        // Convert date strings to Date objects
+        startDate: formData.startDate ? new Date(formData.startDate) : undefined,
+        expectedEndDate: formData.expectedEndDate ? new Date(formData.expectedEndDate) : undefined,
+        // Ensure arrays are properly set
+        technologyStack: formData.technologyStack || [],
+        developmentEnvironment: formData.developmentEnvironment || []
       };
 
       await createProject(projectData);
@@ -213,6 +365,76 @@ const ProjectAdd = () => {
                 />
               </div>
 
+              {/* Additional Details Section */}
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Additional Details
+                  </label>
+                </div>
+                
+                {details.map((detail, index) => (
+                  <div key={detail.id} className="border border-gray-200 rounded-lg p-4 mb-4 bg-gray-50">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="text"
+                          value={detail.title}
+                          onChange={(e) => updateDetail(detail.id, 'title', e.target.value)}
+                          placeholder="Detail title (e.g., Technical Specs, Requirements)"
+                          className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50 text-sm font-medium"
+                        />
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <IconButton
+                          onClick={() => moveDetailUp(detail.id)}
+                          variant="ghost"
+                          size="sm"
+                          icon={ChevronUp}
+                          disabled={index === 0}
+                          title="Move up"
+                        />
+                        <IconButton
+                          onClick={() => moveDetailDown(detail.id)}
+                          variant="ghost"
+                          size="sm"
+                          icon={ChevronDown}
+                          disabled={index === details.length - 1}
+                          title="Move down"
+                        />
+                        <IconButton
+                          onClick={() => deleteDetail(detail.id)}
+                          variant="ghost"
+                          size="sm"
+                          icon={Trash2}
+                          className="text-red-600 hover:text-red-700"
+                          title="Delete"
+                        />
+                      </div>
+                    </div>
+                    <MarkdownEditor
+                      value={detail.content}
+                      onChange={(value) => updateDetail(detail.id, 'content', value)}
+                      placeholder="Add detailed information for this section..."
+                      className="min-h-[200px]"
+                    />
+                  </div>
+                ))}
+                
+                {/* Add Additional File Button - Always at bottom */}
+                <div className="mt-4">
+                  <Button
+                    type="button"
+                    onClick={addDetail}
+                    variant="outline"
+                    size="sm"
+                    icon={Plus}
+                  >
+                    Add Additional File
+                  </Button>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Status
@@ -246,6 +468,167 @@ const ProjectAdd = () => {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              {/* Team Lead Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Team Leads
+                </label>
+                <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-300 rounded-lg p-3">
+                  {availableTeamLeads.length === 0 ? (
+                    <p className="text-sm text-gray-500">No team leads available</p>
+                  ) : (
+                    availableTeamLeads.map((teamLead) => (
+                      <label key={teamLead.id} className="flex items-center space-x-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formData.teamLeadIds.includes(teamLead.id)}
+                          onChange={() => handleTeamLeadToggle(teamLead.id)}
+                          className="rounded border-gray-300 text-primary focus:ring-primary/20"
+                        />
+                        <span className="text-sm text-gray-700">
+                          {teamLead.name}
+                        </span>
+                      </label>
+                    ))
+                  )}
+                </div>
+                {formData.teamLeadIds.length > 0 && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Selected: {formData.teamLeadIds.length} team lead(s)
+                  </p>
+                )}
+              </div>
+
+              {/* Project Timeline Section */}
+              <div className="border-t border-gray-200 pt-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Project Timeline</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Start Date
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.startDate}
+                      onChange={(e) => handleChange('startDate', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Expected End Date
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.expectedEndDate}
+                      onChange={(e) => handleChange('expectedEndDate', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Duration
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.duration}
+                      onChange={(e) => handleChange('duration', e.target.value)}
+                      placeholder="e.g., 2.5 months"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Technical Details Section */}
+              <div className="border-t border-gray-200 pt-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Technical Details</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Technology Stack
+                    </label>
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        placeholder="Add technology and press enter"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50"
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') {
+                            const value = e.currentTarget.value.trim();
+                            if (value && !formData.technologyStack.includes(value)) {
+                              handleChange('technologyStack', [...formData.technologyStack, value]);
+                              e.currentTarget.value = '';
+                            }
+                          }
+                        }}
+                      />
+                      <div className="flex flex-wrap gap-2">
+                        {formData.technologyStack.map((tech, index) => (
+                          <span
+                            key={index}
+                            className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm flex items-center gap-1"
+                          >
+                            {tech}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newStack = formData.technologyStack.filter((_, i) => i !== index);
+                                handleChange('technologyStack', newStack);
+                              }}
+                              className="ml-1 text-blue-600 hover:text-blue-800"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Development Environment
+                    </label>
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        placeholder="Add environment and press enter"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50"
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') {
+                            const value = e.currentTarget.value.trim();
+                            if (value && !formData.developmentEnvironment.includes(value)) {
+                              handleChange('developmentEnvironment', [...formData.developmentEnvironment, value]);
+                              e.currentTarget.value = '';
+                            }
+                          }
+                        }}
+                      />
+                      <div className="flex flex-wrap gap-2">
+                        {formData.developmentEnvironment.map((env, index) => (
+                          <span
+                            key={index}
+                            className="bg-green-100 text-green-800 px-2 py-1 rounded text-sm flex items-center gap-1"
+                          >
+                            {env}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newEnv = formData.developmentEnvironment.filter((_, i) => i !== index);
+                                handleChange('developmentEnvironment', newEnv);
+                              }}
+                              className="ml-1 text-green-600 hover:text-green-800"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

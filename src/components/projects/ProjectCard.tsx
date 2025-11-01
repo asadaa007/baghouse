@@ -51,7 +51,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 
   const [teamName, setTeamName] = useState<string>(project.teamId ? 'Loading…' : 'No Team');
   const [managerName, setManagerName] = useState<string>('-');
-  const [teamLeadName, setTeamLeadName] = useState<string>('-');
+  const [teamLeadNames, setTeamLeadNames] = useState<string[]>([]);
   const [menuOpen, setMenuOpen] = useState<boolean>(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -124,49 +124,53 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
           setMemberCount(0);
         }
 
-        let leadId: string | undefined;
+        let leadIds: string[] = [];
         
-        // First, try to get team lead from the assigned team
+        // First, try to get team leads from the assigned team
         if (project.teamId) {
           const ctxTeam = teams.find(t => t.id === project.teamId);
-          if (ctxTeam?.teamLeadId) {
-            leadId = ctxTeam.teamLeadId;
+          if (ctxTeam?.teamLeadIds && ctxTeam.teamLeadIds.length > 0) {
+            leadIds = ctxTeam.teamLeadIds; // Use all team leads
           } else {
             // If no team lead in team, try to fetch team data
             try {
               const fetched = await getTeamById(project.teamId);
-              if (fetched?.teamLeadId) {
-                leadId = fetched.teamLeadId;
+              if (fetched?.teamLeadIds && fetched.teamLeadIds.length > 0) {
+                leadIds = fetched.teamLeadIds; // Use all team leads
               }
             } catch (error) {
-              console.error('Error fetching team for lead:', error);
+              console.error('Error fetching team for leads:', error);
             }
           }
         }
         
         // Fallback: look for team_lead in project members
-        if (!leadId) {
-          const teamLeadMember = project.members?.find(m => m.role === 'team_lead');
-          if (teamLeadMember) leadId = teamLeadMember.userId;
+        if (leadIds.length === 0) {
+          const teamLeadMembers = project.members?.filter(m => m.role === 'team_lead');
+          if (teamLeadMembers && teamLeadMembers.length > 0) {
+            leadIds = teamLeadMembers.map(m => m.userId);
+          }
         }
         
         // Final fallback: use project owner
-        if (!leadId && project.owner) {
-          leadId = project.owner;
+        if (leadIds.length === 0 && project.owner) {
+          leadIds = [project.owner];
         }
 
-        if (leadId) {
-          const lead = await getUserById(leadId);
+        if (leadIds.length > 0) {
+          const leadPromises = leadIds.map(leadId => getUserById(leadId));
+          const leads = await Promise.all(leadPromises);
           if (!isActive) return;
-          setTeamLeadName(lead?.name || '-');
+          const validLeads = leads.filter(lead => lead !== null).map(lead => lead!.name);
+          setTeamLeadNames(validLeads);
         } else {
-          setTeamLeadName('-');
+          setTeamLeadNames([]);
         }
       } catch {
         if (!isActive) return;
         setTeamName(project.teamId ? 'Unknown Team' : 'No Team');
         setManagerName('-');
-        setTeamLeadName('-');
+        setTeamLeadNames([]);
         setMemberCount(0);
       }
     };
@@ -263,7 +267,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
             </p>
             <div className="flex items-center text-xs text-gray-500">
               <Calendar className="w-3 h-3 mr-1" />
-              Created {project.createdAt.toLocaleDateString()}
+              Created: {project.createdAt.toLocaleDateString()}
             </div>
           </div>
           {(canManageProject || canCreateBug) && (
@@ -277,7 +281,10 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
               {menuOpen && (
                 <div className="absolute right-0 mt-2 w-44 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
                 <button
-                  onClick={() => { setMenuOpen(false); navigate(`/p/${project.slug}/edit`); }}
+                  onClick={() => { 
+                    setMenuOpen(false); 
+                    navigate(`/projects/${encodeURIComponent(project.id)}/edit`); 
+                  }}
                   className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
                 >
                   <Edit className="w-4 h-4 inline mr-2 text-gray-500" /> Edit
@@ -300,7 +307,10 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
                 )}
                 {canCreateBug && (
                   <button
-                    onClick={() => { setMenuOpen(false); navigate(`/p/${project.slug}?newBug=1`); }}
+                    onClick={() => { 
+                      setMenuOpen(false); 
+                      navigate(`/projects/${encodeURIComponent(project.id)}?newBug=1`); 
+                    }}
                     className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
                   >
                     <Bug className="w-4 h-4 inline mr-2 text-gray-500" /> Create Bug
@@ -316,7 +326,25 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
           <Pill icon={<Users className="w-4 h-4" />} label="Assigned Team" value={teamName} />
           <Pill icon={<UserIcon className="w-4 h-4" />} label="Manager" value={managerName} />
-          <Pill icon={<UserIcon className="w-4 h-4" />} label="Team Lead" value={teamLeadName} />
+          <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+            <div className="flex items-center space-x-2 mb-2">
+              <UserIcon className="w-4 h-4 text-gray-500" />
+              <span className="text-xs font-medium text-gray-600 uppercase">
+                {teamLeadNames.length === 1 ? 'Team Lead' : 'Team Leads'}
+              </span>
+            </div>
+            {teamLeadNames.length > 0 ? (
+              <div className="space-y-1">
+                {teamLeadNames.map((name, index) => (
+                  <div key={index} className="text-sm font-semibold text-gray-900">
+                    {name}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-sm text-gray-500">-</div>
+            )}
+          </div>
         </div>
 
         {/* Progress Bar */}
@@ -365,16 +393,16 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
         <div className="flex items-center justify-between pt-4 border-t border-gray-100">
           <div className="flex items-center space-x-3">
             <Link
-              to={`/p/${project.slug}`}
+              to={`/projects/${encodeURIComponent(project.id)}`}
               className="flex items-center text-sm text-primary hover:text-primary/80 transition-colors font-medium"
             >
               <Eye className="w-4 h-4 mr-1" />
-              Kenben View
+              Kanban View
             </Link>
           </div>
           <div className="flex items-center space-x-1">
             <button
-              onClick={() => navigate(`/p/${project.slug}/preview`)}
+              onClick={() => navigate(`/projects/${encodeURIComponent(project.id)}/preview`)}
               className="flex items-center text-sm text-gray-600 hover:text-gray-800 transition-colors"
             >
               <Eye className="w-4 h-4 mr-1" />

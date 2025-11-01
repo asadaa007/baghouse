@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useBugs } from '../../context/BugContext';
 import Modal from '../common/Modal';
 import Button from '../common/Button';
+import MarkdownRenderer from '../common/MarkdownRenderer';
 import type { Bug, Comment } from '../../types/bugs';
 import { 
   MessageSquare, 
@@ -71,9 +72,10 @@ const BugViewModal: React.FC<BugViewModalProps> = ({
     switch (status) {
       case 'new': return 'bg-blue-100 text-blue-800';
       case 'in-progress': return 'bg-yellow-100 text-yellow-800';
-      case 'review': return 'bg-purple-100 text-purple-800';
-      case 'resolved': return 'bg-green-100 text-green-800';
-      case 'closed': return 'bg-gray-100 text-gray-800';
+      case 'revision': return 'bg-orange-100 text-orange-800';
+      case 'ready-for-qc': return 'bg-purple-100 text-purple-800';
+      case 'in-qc': return 'bg-indigo-100 text-indigo-800';
+      case 'completed': return 'bg-green-100 text-green-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -161,7 +163,7 @@ const BugViewModal: React.FC<BugViewModalProps> = ({
         <div>
           <h3 className="text-sm font-medium text-gray-700 mb-2">Description</h3>
           <div className="bg-gray-50 rounded-lg p-4">
-            <p className="text-gray-900 whitespace-pre-wrap">{bug.description}</p>
+            <MarkdownRenderer content={bug.description || ''} />
           </div>
         </div>
 

@@ -67,70 +67,12 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
     }, 0);
   };
 
-  const handlePaste = (e: React.ClipboardEvent) => {
-    const pastedText = e.clipboardData.getData('text');
-    
-    // Clean the pasted text by removing leading @ and other special characters
-    const cleanedText = pastedText.trim().replace(/^[@#\s]+/, '');
-    
-    // More comprehensive URL regex that handles SharePoint URLs and other complex formats
-    const urlRegex = /^(https?:\/\/)?([\w\-\.]+\.)+[\w\-]{2,}(\/[\w\-\._~:/?#[\]@!\$&'\(\)\*\+,;=]*)?$/i;
-    const isUrl = urlRegex.test(cleanedText);
-    
-    if (isUrl) {
-      e.preventDefault();
-      
-      const textarea = textareaRef.current;
-      if (!textarea) return;
-
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      
-      // Convert URL to markdown link format
-      let url = cleanedText;
-      // Add protocol if missing
-      if (!url.startsWith('http://') && !url.startsWith('https://')) {
-        url = 'https://' + url;
-      }
-      
-      const linkText = url.replace(/^https?:\/\//, '').replace(/^www\./, ''); // Remove protocol and www for display text
-      const markdownLink = `[${linkText}](${url})`;
-      
-      const newText = value.substring(0, start) + markdownLink + value.substring(end);
-      onChange(newText);
-      
-      // Set cursor position after the link
-      setTimeout(() => {
-        textarea.focus();
-        textarea.setSelectionRange(start + markdownLink.length, start + markdownLink.length);
-      }, 0);
-    }
+  const handlePaste = () => {
+    // Let the default paste behavior handle everything
+    // This prevents any automatic URL conversion that might be causing issues
+    return;
   };
 
-  const autoDetectLinks = (text: string) => {
-    // Auto-detect URLs in text and convert them to markdown links
-    // Comprehensive URL regex that handles SharePoint URLs and other complex formats
-    const urlRegex = /(https?:\/\/[\w\-\.]+\.+[\w\-]{2,}(\/[\w\-\._~:/?#[\]@!\$&'\(\)\*\+,;=]*)?)/g;
-    
-    return text.replace(urlRegex, (url) => {
-      // Skip if already a markdown link
-      if (url.includes('[') && url.includes('](')) {
-        return url;
-      }
-      
-      // Clean the URL by removing leading @ and other special characters
-      const cleanedUrl = url.replace(/^[@#\s]+/, '');
-      
-      let fullUrl = cleanedUrl;
-      // Add protocol if missing
-      if (!cleanedUrl.startsWith('http://') && !cleanedUrl.startsWith('https://')) {
-        fullUrl = 'https://' + cleanedUrl;
-      }
-      
-      const linkText = cleanedUrl.replace(/^https?:\/\//, '').replace(/^www\./, ''); // Remove protocol and www for display text
-      return `[${linkText}](${fullUrl})`;
-    });
-  };
 
   const formatText = (format: string) => {
     switch (format) {
@@ -250,10 +192,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
             ref={textareaRef}
             value={value}
             onChange={(e) => {
-              const newValue = e.target.value;
-              // Auto-detect and convert URLs to markdown links
-              const processedValue = autoDetectLinks(newValue);
-              onChange(processedValue);
+              onChange(e.target.value);
             }}
             onPaste={handlePaste}
             placeholder={placeholder}

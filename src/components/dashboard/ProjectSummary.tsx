@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Folder, Plus, Users, Bug, TrendingUp } from 'lucide-react';
+import { Button } from '../common/buttons';
 import type { Project } from '../../types/projects';
 
 interface ProjectSummaryProps {
@@ -57,13 +58,14 @@ const ProjectSummary: React.FC<ProjectSummaryProps> = ({
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-lg font-semibold text-gray-900">Project Summary</h3>
-        <button 
+        <Button 
           onClick={onNewProject}
-          className="btn-primary"
+          variant="primary"
+          size="sm"
+          icon={Plus}
         >
-          <Plus className="w-4 h-4 mr-2" />
           New Project
-        </button>
+        </Button>
       </div>
 
       {/* Project Stats */}
@@ -105,12 +107,14 @@ const ProjectSummary: React.FC<ProjectSummaryProps> = ({
           <div className="text-center py-6">
             <Folder className="w-8 h-8 text-gray-400 mx-auto mb-2" />
             <p className="text-sm text-gray-600 mb-3">No projects yet</p>
-            <button 
+            <Button 
               onClick={onNewProject}
-              className="text-sm text-primary hover:text-primary/80 font-medium"
+              variant="ghost"
+              size="sm"
+              icon={Plus}
             >
               Create your first project
-            </button>
+            </Button>
           </div>
         ) : (
           <div className="space-y-3">

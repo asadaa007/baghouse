@@ -73,10 +73,10 @@ const SuperAdminDashboard = () => {
     totalMembers: teams.reduce((acc, team) => acc + (team.members?.length || 0), 0),
     totalProjects: projects.length,
     totalBugs: bugs.length,
-    resolvedBugs: bugs.filter(b => b.status === 'resolved' || b.status === 'closed').length,
+    resolvedBugs: bugs.filter(b => b.status === 'completed').length,
     openBugs: bugs.filter(b => b.status === 'new' || b.status === 'in-progress').length,
     criticalBugs: bugs.filter(b => b.priority === 'critical').length,
-    resolutionRate: bugs.length ? Math.round((bugs.filter(b => b.status === 'resolved' || b.status === 'closed').length / bugs.length) * 100) : 0,
+    resolutionRate: bugs.length ? Math.round((bugs.filter(b => b.status === 'completed').length / bugs.length) * 100) : 0,
   };
 
   const stats = [

@@ -4,7 +4,8 @@ import type { LucideIcon } from 'lucide-react';
 
 export interface LinkButtonProps {
   children: React.ReactNode;
-  to: string;
+  to?: string;
+  onClick?: () => void;
   icon?: LucideIcon;
   variant?: 'default' | 'primary' | 'secondary' | 'ghost';
   size?: 'sm' | 'md' | 'lg';
@@ -15,6 +16,7 @@ export interface LinkButtonProps {
 const LinkButton: React.FC<LinkButtonProps> = ({
   children,
   to,
+  onClick,
   icon: Icon,
   variant = 'default',
   size = 'md',
@@ -47,7 +49,22 @@ const LinkButton: React.FC<LinkButtonProps> = ({
     return null;
   };
 
-  if (external) {
+  // If onClick is provided, render as a button
+  if (onClick) {
+    return (
+      <button
+        onClick={onClick}
+        className={classes}
+        type="button"
+      >
+        {renderIcon()}
+        {children}
+      </button>
+    );
+  }
+
+  // If external is true, render as external link
+  if (external && to) {
     return (
       <a
         href={to}
@@ -61,11 +78,26 @@ const LinkButton: React.FC<LinkButtonProps> = ({
     );
   }
   
+  // Default: render as internal Link (requires to prop)
+  if (to) {
+    return (
+      <Link to={to} className={classes}>
+        {renderIcon()}
+        {children}
+      </Link>
+    );
+  }
+
+  // Fallback: render as button if no to prop provided
   return (
-    <Link to={to} className={classes}>
+    <button
+      className={classes}
+      type="button"
+      disabled
+    >
       {renderIcon()}
       {children}
-    </Link>
+    </button>
   );
 };
 

@@ -6,6 +6,7 @@ export interface Project {
   slug: string; // URL-friendly slug
   shortDescription?: string;
   description: string;
+  details: ProjectDetail[]; // Array of additional details
   owner: string;
   ownerName?: string;
   members: ProjectMember[];
@@ -13,7 +14,26 @@ export interface Project {
   status: 'active' | 'inactive' | 'on_hold' | 'discontinued' | 'complete';
   statusReason?: string | null;
   teamId?: string; // Assigned team
+  teamLeadIds?: string[]; // Array of team lead user IDs
   bugs?: Bug[]; // Array of bugs for this project
+  // Timeline fields
+  startDate?: Date;
+  expectedEndDate?: Date;
+  duration?: string; // e.g., "2.5 months"
+  // Technical details
+  technologyStack?: string[]; // e.g., ["React", "TypeScript", "Firebase"]
+  developmentEnvironment?: string[]; // e.g., ["Node.js v18+", "Vite Build Tool"]
+  // Kanban columns customization
+  customColumns?: KanbanColumn[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ProjectDetail {
+  id: string;
+  title: string;
+  content: string;
+  order: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -38,4 +58,11 @@ export interface CustomField {
   type: 'text' | 'number' | 'select' | 'date' | 'boolean';
   required: boolean;
   options?: string[];
+}
+
+export interface KanbanColumn {
+  id: string;
+  title: string;
+  color: string;
+  isDefault: boolean;
 } 

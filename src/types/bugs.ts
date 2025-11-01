@@ -24,7 +24,7 @@ export interface Bug {
   userName?: string;
 }
 
-export type BugStatus = 'new' | 'in-progress' | 'review' | 'resolved' | 'closed';
+export type BugStatus = 'new' | 'in-progress' | 'revision' | 'ready-for-qc' | 'in-qc' | 'completed';
 export type BugPriority = 'low' | 'medium' | 'high' | 'critical';
 
 export interface Attachment {

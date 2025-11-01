@@ -55,6 +55,9 @@ export const TeamProvider: React.FC<TeamProviderProps> = ({ children }) => {
       } else if (user.role === 'manager') {
         // Manager can see teams they manage
         teamsData = await teamService.getTeamsByManager(user.id);
+      } else if (user.role === 'team_lead') {
+        // Team lead can see teams they lead
+        teamsData = await teamService.getTeamsByTeamLead(user.id);
       } else if (user.role === 'team_member' && user.teamId) {
         // Team member can see their team
         const team = await teamService.getTeamById(user.teamId);

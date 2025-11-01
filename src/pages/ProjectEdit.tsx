@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useProjects } from '../context/ProjectContext';
 import { useTeams } from '../context/TeamContext';
 import { useAuth } from '../context/AuthContext';
+import { getAllUsers } from '../services/userService';
 import Navigation from '../components/layout/Navigation';
 import BreadcrumbNew from '../components/common/BreadcrumbNew';
 import Loading from '../components/common/Loading';
@@ -11,13 +12,20 @@ import {
   Save,
   X,
   AlertCircle,
+  Plus,
+  Trash2,
+  ChevronUp,
+  ChevronDown
 } from 'lucide-react';
-import { Button } from '../components/common/buttons';
+import { Button, IconButton } from '../components/common/buttons';
 import MarkdownEditor from '../components/common/MarkdownEditor';
-import type { Project, ProjectSettings } from '../types/projects';
+import type { Project, ProjectSettings, ProjectDetail } from '../types/projects';
 
 const ProjectEdit = () => {
-  const { projectId, slug } = useParams<{ projectId?: string; slug?: string }>();
+  const { projectId: rawProjectId, slug } = useParams<{ projectId?: string; slug?: string }>();
+  
+  // Decode the projectId if it was URL encoded
+  const projectId = rawProjectId ? decodeURIComponent(rawProjectId) : undefined;
   const navigate = useNavigate();
   const { projects, updateProject } = useProjects();
   const { teams } = useTeams();
@@ -33,6 +41,12 @@ const ProjectEdit = () => {
     description: '',
     status: 'active' as Project['status'],
     teamId: '' as string | undefined,
+    teamLeadIds: [] as string[],
+    startDate: '',
+    expectedEndDate: '',
+    duration: '',
+    technologyStack: [] as string[],
+    developmentEnvironment: [] as string[],
     settings: {
       allowPublicAccess: false,
       requireApproval: false,
@@ -40,9 +54,13 @@ const ProjectEdit = () => {
       customFields: []
     } as ProjectSettings
   });
+  
+  const [details, setDetails] = useState<ProjectDetail[]>([]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [availableTeams, setAvailableTeams] = useState(teams);
+  const [availableTeamLeads, setAvailableTeamLeads] = useState<any[]>([]);
+  const [teamLeadNames, setTeamLeadNames] = useState<{[key: string]: string}>({});
 
   // Role-based permissions
   const canEditProjects = user?.role === 'super_admin' || user?.role === 'manager' || user?.role === 'team_lead';
@@ -66,21 +84,74 @@ const ProjectEdit = () => {
           description: foundProject.description,
           status: foundProject.status,
           teamId: foundProject.teamId || '',
+          teamLeadIds: foundProject.teamLeadIds || [],
+          startDate: foundProject.startDate ? new Date(foundProject.startDate).toISOString().split('T')[0] : '',
+          expectedEndDate: foundProject.expectedEndDate ? new Date(foundProject.expectedEndDate).toISOString().split('T')[0] : '',
+          duration: foundProject.duration || '',
+          technologyStack: foundProject.technologyStack || [],
+          developmentEnvironment: foundProject.developmentEnvironment || [],
           settings: foundProject.settings
         });
+        setDetails(foundProject.details || []);
       }
       
       setLoading(false);
     };
 
-    if (projects.length > 0 || projectId || slug) {
+    if (projects.length > 0) {
       findProject();
+    } else if (projectId || slug) {
+      // If we have a projectId or slug but no projects loaded yet, wait
     }
   }, [projectId, slug, projects]);
 
   useEffect(() => {
     setAvailableTeams(teams);
   }, [teams]);
+
+  // Load team lead names for display
+  useEffect(() => {
+    const loadTeamLeadNames = async () => {
+      try {
+        const users = await getAllUsers();
+        const namesMap: {[key: string]: string} = {};
+        users.forEach(user => {
+          namesMap[user.id] = user.name;
+        });
+        setTeamLeadNames(namesMap);
+      } catch (error) {
+        console.error('Error loading team lead names:', error);
+      }
+    };
+    
+    loadTeamLeadNames();
+  }, []);
+
+  // Update available team leads when team selection changes
+  useEffect(() => {
+    if (formData.teamId) {
+      const selectedTeam = teams.find(team => team.id === formData.teamId);
+      if (selectedTeam && selectedTeam.teamLeadIds) {
+        const teamLeads = selectedTeam.teamLeadIds.map(leadId => ({
+          id: leadId,
+          name: teamLeadNames[leadId] || 'Unknown'
+        }));
+        setAvailableTeamLeads(teamLeads);
+        
+        // Auto-select if there's only one team lead and no current selection
+        if (teamLeads.length === 1 && formData.teamLeadIds.length === 0) {
+          setFormData(prev => ({
+            ...prev,
+            teamLeadIds: [teamLeads[0].id]
+          }));
+        }
+      } else {
+        setAvailableTeamLeads([]);
+      }
+    } else {
+      setAvailableTeamLeads([]);
+    }
+  }, [formData.teamId, teams, teamLeadNames]);
 
   const handleChange = (field: string, value: any) => {
     if (field.includes('.')) {
@@ -100,6 +171,78 @@ const ProjectEdit = () => {
     }
   };
 
+  const handleTeamLeadToggle = (teamLeadId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      teamLeadIds: prev.teamLeadIds.includes(teamLeadId)
+        ? prev.teamLeadIds.filter(id => id !== teamLeadId)
+        : [...prev.teamLeadIds, teamLeadId]
+    }));
+  };
+
+  // Detail management functions
+  const addDetail = () => {
+    const newDetail: ProjectDetail = {
+      id: `detail-${Date.now()}`,
+      title: '',
+      content: '',
+      order: details.length,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    setDetails(prev => [...prev, newDetail]);
+  };
+
+  const updateDetail = (id: string, field: 'title' | 'content', value: string) => {
+    setDetails(prev => prev.map(detail => 
+      detail.id === id 
+        ? { ...detail, [field]: value, updatedAt: new Date() }
+        : detail
+    ));
+  };
+
+  const deleteDetail = (id: string) => {
+    setDetails(prev => {
+      const filtered = prev.filter(detail => detail.id !== id);
+      // Reorder remaining details
+      return filtered.map((detail, index) => ({
+        ...detail,
+        order: index
+      }));
+    });
+  };
+
+  const moveDetailUp = (id: string) => {
+    setDetails(prev => {
+      const index = prev.findIndex(detail => detail.id === id);
+      if (index <= 0) return prev;
+      
+      const newDetails = [...prev];
+      [newDetails[index - 1], newDetails[index]] = [newDetails[index], newDetails[index - 1]];
+      
+      // Update order
+      return newDetails.map((detail, idx) => ({
+        ...detail,
+        order: idx
+      }));
+    });
+  };
+
+  const moveDetailDown = (id: string) => {
+    setDetails(prev => {
+      const index = prev.findIndex(detail => detail.id === id);
+      if (index >= prev.length - 1) return prev;
+      
+      const newDetails = [...prev];
+      [newDetails[index], newDetails[index + 1]] = [newDetails[index + 1], newDetails[index]];
+      
+      // Update order
+      return newDetails.map((detail, idx) => ({
+        ...detail,
+        order: idx
+      }));
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,11 +257,19 @@ const ProjectEdit = () => {
     try {
       const projectData = {
         ...formData,
-        settings: formData.settings
+        details: details,
+        settings: formData.settings,
+        // Convert date strings to Date objects
+        startDate: formData.startDate ? new Date(formData.startDate) : undefined,
+        expectedEndDate: formData.expectedEndDate ? new Date(formData.expectedEndDate) : undefined,
+        // Ensure arrays are properly set
+        technologyStack: formData.technologyStack || [],
+        developmentEnvironment: formData.developmentEnvironment || []
       };
 
+
       await updateProject(project.id, projectData);
-      navigate(`/projects/${project.id}/preview`);
+      navigate(`/projects/${encodeURIComponent(project.id)}/preview`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update project');
     } finally {
@@ -132,6 +283,17 @@ const ProjectEdit = () => {
         <Navigation />
         <div className="flex items-center justify-center min-h-[calc(100vh-64px)]">
           <Loading size="lg" text="Loading project details..." />
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Navigation />
+        <div className="flex items-center justify-center min-h-[calc(100vh-64px)]">
+          <Loading />
         </div>
       </div>
     );
@@ -169,7 +331,7 @@ const ProjectEdit = () => {
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h2>
             <p className="text-gray-600 mb-6">You don't have permission to edit this project.</p>
             <Button
-              onClick={() => navigate(`/projects/${project.id}/preview`)}
+              onClick={() => navigate(`/projects/${encodeURIComponent(project.id)}/preview`)}
               variant="primary"
               icon={ArrowLeft}
             >
@@ -206,7 +368,7 @@ const ProjectEdit = () => {
               </div>
               <div className="flex items-center gap-3">
                 <Button
-                  onClick={() => navigate(`/projects/${project.id}/preview`)}
+                  onClick={() => navigate(`/projects/${encodeURIComponent(project.id)}/preview`)}
                   variant="outline"
                   icon={X}
                 >
@@ -279,6 +441,76 @@ const ProjectEdit = () => {
                 />
               </div>
 
+              {/* Additional Details Section */}
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Additional Details
+                  </label>
+                </div>
+                
+                {details.map((detail, index) => (
+                  <div key={detail.id} className="border border-gray-200 rounded-lg p-4 mb-4 bg-gray-50">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="text"
+                          value={detail.title}
+                          onChange={(e) => updateDetail(detail.id, 'title', e.target.value)}
+                          placeholder="Detail title (e.g., Technical Specs, Requirements)"
+                          className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50 text-sm font-medium"
+                        />
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <IconButton
+                          onClick={() => moveDetailUp(detail.id)}
+                          variant="ghost"
+                          size="sm"
+                          icon={ChevronUp}
+                          disabled={index === 0}
+                          title="Move up"
+                        />
+                        <IconButton
+                          onClick={() => moveDetailDown(detail.id)}
+                          variant="ghost"
+                          size="sm"
+                          icon={ChevronDown}
+                          disabled={index === details.length - 1}
+                          title="Move down"
+                        />
+                        <IconButton
+                          onClick={() => deleteDetail(detail.id)}
+                          variant="ghost"
+                          size="sm"
+                          icon={Trash2}
+                          className="text-red-600 hover:text-red-700"
+                          title="Delete"
+                        />
+                      </div>
+                    </div>
+                    <MarkdownEditor
+                      value={detail.content}
+                      onChange={(value) => updateDetail(detail.id, 'content', value)}
+                      placeholder="Add detailed information for this section..."
+                      className="min-h-[200px]"
+                    />
+                  </div>
+                ))}
+                
+                {/* Add Additional File Button - Always at bottom */}
+                <div className="mt-4">
+                  <Button
+                    type="button"
+                    onClick={addDetail}
+                    variant="outline"
+                    size="sm"
+                    icon={Plus}
+                  >
+                    Add Additional File
+                  </Button>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Status
@@ -312,6 +544,171 @@ const ProjectEdit = () => {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              {/* Team Lead Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Team Leads
+                </label>
+                <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-300 rounded-lg p-3">
+                  {availableTeamLeads.length === 0 ? (
+                    <p className="text-sm text-gray-500">No team leads available</p>
+                  ) : (
+                    availableTeamLeads.map((teamLead) => (
+                      <label key={teamLead.id} className="flex items-center space-x-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formData.teamLeadIds.includes(teamLead.id)}
+                          onChange={() => handleTeamLeadToggle(teamLead.id)}
+                          className="rounded border-gray-300 text-primary focus:ring-primary/20"
+                        />
+                        <span className="text-sm text-gray-700">
+                          {teamLead.name}
+                        </span>
+                      </label>
+                    ))
+                  )}
+                </div>
+                {formData.teamLeadIds.length > 0 && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Selected: {formData.teamLeadIds.length} team lead(s)
+                  </p>
+                )}
+              </div>
+
+              {/* Project Timeline Section */}
+              <div className="border-t border-gray-200 pt-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Project Timeline</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Start Date
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.startDate}
+                      onChange={(e) => handleChange('startDate', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Expected End Date
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.expectedEndDate}
+                      onChange={(e) => handleChange('expectedEndDate', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Duration
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.duration}
+                      onChange={(e) => handleChange('duration', e.target.value)}
+                      placeholder="e.g., 2.5 months"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Technical Details Section */}
+              <div className="border-t border-gray-200 pt-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Technical Details</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Technology Stack
+                    </label>
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        placeholder="Add technology and press enter"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50"
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') {
+                            const value = e.currentTarget.value.trim();
+                            if (value && !formData.technologyStack.includes(value)) {
+                              console.log('Adding technology:', value);
+                              console.log('Current stack:', formData.technologyStack);
+                              handleChange('technologyStack', [...formData.technologyStack, value]);
+                              e.currentTarget.value = '';
+                            }
+                          }
+                        }}
+                      />
+                      <div className="flex flex-wrap gap-2">
+                        {formData.technologyStack.map((tech, index) => (
+                          <span
+                            key={index}
+                            className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm flex items-center gap-1"
+                          >
+                            {tech}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newStack = formData.technologyStack.filter((_, i) => i !== index);
+                                handleChange('technologyStack', newStack);
+                              }}
+                              className="ml-1 text-blue-600 hover:text-blue-800"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Development Environment
+                    </label>
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        placeholder="Add environment and press enter"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50"
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') {
+                            const value = e.currentTarget.value.trim();
+                            if (value && !formData.developmentEnvironment.includes(value)) {
+                              console.log('Adding environment:', value);
+                              console.log('Current environment:', formData.developmentEnvironment);
+                              handleChange('developmentEnvironment', [...formData.developmentEnvironment, value]);
+                              e.currentTarget.value = '';
+                            }
+                          }
+                        }}
+                      />
+                      <div className="flex flex-wrap gap-2">
+                        {formData.developmentEnvironment.map((env, index) => (
+                          <span
+                            key={index}
+                            className="bg-green-100 text-green-800 px-2 py-1 rounded text-sm flex items-center gap-1"
+                          >
+                            {env}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newEnv = formData.developmentEnvironment.filter((_, i) => i !== index);
+                                handleChange('developmentEnvironment', newEnv);
+                              }}
+                              className="ml-1 text-green-600 hover:text-green-800"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

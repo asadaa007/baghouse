@@ -71,6 +71,7 @@ const Projects = () => {
   };
 
 
+
   const handleDeleteProject = async (projectId: string) => {
     if (!confirm('Are you sure you want to delete this project? This action cannot be undone.')) {
       return;
@@ -126,10 +127,10 @@ const Projects = () => {
     const projectBugs = bugs.filter(bug => bug.projectId === projectId);
     return {
       total: projectBugs.length,
-      // Treat new, in-progress, and review as open
-      open: projectBugs.filter(bug => bug.status === 'new' || bug.status === 'in-progress' || bug.status === 'review').length,
-      // Treat resolved and closed as resolved/completed
-      resolved: projectBugs.filter(bug => bug.status === 'resolved' || bug.status === 'closed').length,
+      // Treat new, in-progress, and revision as open
+      open: projectBugs.filter(bug => bug.status === 'new' || bug.status === 'in-progress' || bug.status === 'revision').length,
+      // Treat completed as resolved/completed
+      resolved: projectBugs.filter(bug => bug.status === 'completed').length,
       critical: projectBugs.filter(bug => bug.priority === 'critical').length};
   };
 

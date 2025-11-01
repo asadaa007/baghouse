@@ -396,12 +396,23 @@ export const bugService = {
       const updatedBugs = bugs.map((bug: any) => {
         if (bug.id === id) {
           const existingHistory = bug.history || [];
+          
+          // If updates already contain history, use that instead of creating new entries
+          let finalHistory;
+          if (updates.history && Array.isArray(updates.history)) {
+            // Use the provided history (from component)
+            finalHistory = updates.history;
+          } else {
+            // Use existing history + new entries (from service)
+            finalHistory = [...existingHistory, ...historyEntries];
+          }
+          
           return {
             ...bug,
             ...updates,
             ...(assigneeName && { assigneeName }),
             ...(externalAssigneeName && { externalAssigneeName }),
-            history: [...existingHistory, ...historyEntries],
+            history: finalHistory,
             updatedAt: now
           };
         }
@@ -421,13 +432,9 @@ export const bugService = {
           const user = { id: updates.userId, name: updates.userName || 'Unknown' };
           
           // Log different types of activities based on what was updated
-          if (updates.status === 'resolved') {
+          if (updates.status === 'completed') {
             await activityService.logActivity(
               activityService.createBugActivity.resolved(updatedBug, user)
-            );
-          } else if (updates.status === 'closed') {
-            await activityService.logActivity(
-              activityService.createBugActivity.closed(updatedBug, user)
             );
           } else if (updates.status || updates.priority || updates.assignee || updates.title || updates.description) {
             await activityService.logActivity(

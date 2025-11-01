@@ -18,14 +18,17 @@ import {
   Plus,
   Target
 } from 'lucide-react';
-import { Button } from '../components/common/buttons';
+import { Button, LinkButton } from '../components/common/buttons';
 import MarkdownRenderer from '../components/common/MarkdownRenderer';
 import { getUserById } from '../services/userService';
 import { getTeamById } from '../services/teamService';
-import type { Project } from '../types/projects';
+import type { Project, ProjectDetail } from '../types/projects';
 
 const ProjectPreview = () => {
-  const { projectId, slug } = useParams<{ projectId?: string; slug?: string }>();
+  const { projectId: rawProjectId, slug } = useParams<{ projectId?: string; slug?: string }>();
+  
+  // Decode the projectId if it was URL encoded
+  const projectId = rawProjectId ? decodeURIComponent(rawProjectId) : undefined;
   const navigate = useNavigate();
   const { projects, loading: projectsLoading } = useProjects();
   const { bugs, loading: bugsLoading } = useBugs();
@@ -33,6 +36,7 @@ const ProjectPreview = () => {
   const { teams } = useTeams();
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedDetail, setSelectedDetail] = useState<ProjectDetail | null>(null);
 
   // Role-based permissions
   const canManageProject = user?.role === 'super_admin' || user?.role === 'manager' || user?.role === 'team_lead';
@@ -67,6 +71,8 @@ const ProjectPreview = () => {
         }
         
         setProject(foundProject);
+        // Set selectedDetail to null by default to show project description
+        setSelectedDetail(null);
       } catch (error) {
         console.error('Error finding project:', error);
         setProject(null);
@@ -86,8 +92,8 @@ const ProjectPreview = () => {
   // Calculate bug statistics
   const bugStats = useMemo(() => {
     const total = projectBugs.length;
-    const open = projectBugs.filter(bug => ['new', 'in-progress', 'review'].includes(bug.status)).length;
-    const resolved = projectBugs.filter(bug => ['resolved', 'closed'].includes(bug.status)).length;
+    const open = projectBugs.filter(bug => ['new', 'in-progress', 'revision'].includes(bug.status)).length;
+    const resolved = projectBugs.filter(bug => bug.status === 'completed').length;
     const critical = projectBugs.filter(bug => bug.priority === 'critical').length;
     const progressPercentage = total > 0 ? Math.round((resolved / total) * 100) : 0;
 
@@ -113,8 +119,8 @@ const ProjectPreview = () => {
             }
 
             // Load team lead
-            if (team.teamLeadId) {
-              const teamLead = await getUserById(team.teamLeadId);
+            if (team.teamLeadIds && team.teamLeadIds.length > 0) {
+              const teamLead = await getUserById(team.teamLeadIds[0]);
               setTeamLeadName(teamLead?.name || '-');
             }
 
@@ -202,17 +208,19 @@ const ProjectPreview = () => {
         />
 
         {/* Header */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+          {/* Top Section - Project Title and Actions */}
+          <div className="p-6 border-b border-gray-200">
           <div className="flex items-start justify-between">
             <div className="flex-1">
-              <div className="flex items-center gap-3 mb-4">
+                <div className="flex items-center gap-3 mb-2">
                 <h1 className="text-3xl font-bold text-gray-900">{project.name}</h1>
                 <span className={`px-3 py-1 text-sm font-medium rounded-full ${getStatusColor(project.status)}`}>
                   {project.status.replace('_', ' ')}
                 </span>
               </div>
               {project.shortDescription && (
-                <p className="text-lg text-gray-600 mb-6">{project.shortDescription}</p>
+                  <p className="text-lg text-gray-600 mb-4">{project.shortDescription}</p>
               )}
               <div className="flex items-center text-sm text-gray-500">
                 <Calendar className="w-4 h-4 mr-2" />
@@ -225,7 +233,9 @@ const ProjectPreview = () => {
                 )}
               </div>
             </div>
-            <div className="flex items-center space-x-3">
+              
+              {/* Action Buttons */}
+              <div className="flex flex-col items-end space-y-3 ml-6">
               <Button
                 onClick={() => navigate(`/bugs?project=${project.slug}`)}
                 variant="outline"
@@ -251,6 +261,66 @@ const ProjectPreview = () => {
                   Edit Project
                 </Button>
               )}
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom Section - Project Information Cards */}
+          <div className="p-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Project Timeline - Visible to Admin, Manager, and Team Lead only */}
+              {(user?.role === 'super_admin' || user?.role === 'manager' || user?.role === 'team_lead') && (
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center">
+                    <Target className="w-4 h-4 mr-2" />
+                    Project Timeline
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                      <div className="text-blue-600 text-xs font-medium mb-1">Start Date</div>
+                      <div className="text-blue-900 text-sm font-semibold">
+                        {project.startDate ? new Date(project.startDate).toLocaleDateString() : 'Not set'}
+                      </div>
+                    </div>
+                    <div className="bg-green-50 rounded-lg p-3 border border-green-200">
+                      <div className="text-green-600 text-xs font-medium mb-1">Expected End</div>
+                      <div className="text-green-900 text-sm font-semibold">
+                        {project.expectedEndDate ? new Date(project.expectedEndDate).toLocaleDateString() : 'Not set'}
+                      </div>
+                    </div>
+                    <div className="bg-purple-50 rounded-lg p-3 border border-purple-200">
+                      <div className="text-purple-600 text-xs font-medium mb-1">Duration</div>
+                      <div className="text-purple-900 text-sm font-semibold">
+                        {project.duration || 'Not set'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Project Status */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center">
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  Project Status
+                </h3>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Current Status</span>
+                    <span className={`px-3 py-1 text-sm font-medium rounded-full ${getStatusColor(project.status)}`}>
+                      {project.status.replace('_', ' ')}
+                    </span>
+                  </div>
+                  {(project.status === 'discontinued' || project.status === 'on_hold') && project.statusReason && (
+                    <div className="mt-3">
+                      <span className="text-sm text-gray-600 block mb-2">Status Reason</span>
+                      <p className="text-sm text-gray-900 bg-white p-3 rounded-lg border border-gray-200">
+                        {project.statusReason}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -343,30 +413,12 @@ const ProjectPreview = () => {
               </div>
             </div>
 
-            {/* Project Status */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Project Status</h3>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Current Status</span>
-                  <span className={`px-3 py-1 text-sm font-medium rounded-full ${getStatusColor(project.status)}`}>
-                    {project.status.replace('_', ' ')}
-                  </span>
-                </div>
-                {(project.status === 'discontinued' || project.status === 'on_hold') && project.statusReason && (
-                  <div>
-                    <span className="text-sm text-gray-600 block mb-2">Status Reason</span>
-                    <p className="text-sm text-gray-900 bg-gray-50 p-3 rounded-lg border">
-                      {project.statusReason}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
 
             {/* Project Settings */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Project Settings</h3>
+              <div className="space-y-4">
+                {/* Basic Settings */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">Public Access</span>
@@ -385,106 +437,85 @@ const ProjectPreview = () => {
                   <span className={`px-2 py-1 text-xs rounded-full ${project.settings.autoAssign ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                     {project.settings.autoAssign ? 'Enabled' : 'Disabled'}
                   </span>
-                </div>
-              </div>
             </div>
           </div>
 
+                {/* Technical Details */}
+                <div className="border-t border-gray-200 pt-4">
+                  <h4 className="text-sm font-semibold text-gray-800 mb-3">Technical Details</h4>
+                  <div className="space-y-4">
+                        <div>
+                      <label className="text-xs font-medium text-gray-600 block mb-2">Technology Stack</label>
+                      <div className="flex flex-wrap gap-1">
+                        {project.technologyStack && project.technologyStack.length > 0 ? (
+                          project.technologyStack.map((tech, index) => (
+                            <span key={index} className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
+                              {tech}
+                        </span>
+                          ))
+                        ) : (
+                          <span className="text-gray-500 text-xs">No technologies specified</span>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-600 block mb-2">Development Environment</label>
+                      <div className="flex flex-wrap gap-1">
+                        {project.developmentEnvironment && project.developmentEnvironment.length > 0 ? (
+                          project.developmentEnvironment.map((env, index) => (
+                            <span key={index} className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">
+                              {env}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-gray-500 text-xs">No environment specified</span>
+              )}
+            </div>
+                    </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            {/* Additional Files Links */}
+            {project.details && project.details.length > 0 && (
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Additional Files</h3>
+                <div className="space-y-2">
+                  <LinkButton
+                    onClick={() => setSelectedDetail(null)}
+                    variant={selectedDetail === null ? "primary" : "ghost"}
+                    className="w-full justify-start"
+                  >
+                    Project Description
+                  </LinkButton>
+                  {project.details
+                    .sort((a, b) => a.order - b.order)
+                    .map((detail) => (
+                      <LinkButton
+                        key={detail.id}
+                        onClick={() => setSelectedDetail(detail)}
+                        variant={selectedDetail?.id === detail.id ? "primary" : "ghost"}
+                        className="w-full justify-start"
+                      >
+                        {detail.title || 'Untitled Detail'}
+                      </LinkButton>
+                    ))}
+                </div>
+              </div>
+            )}
+              </div>
+
           {/* Right Side Content - Project Details and Description */}
           <div className="lg:col-span-3">
-            {/* Project Description */}
+            {/* Dynamic Content - Description or Selected Detail */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Project Description</h3>
-              <MarkdownRenderer content={project.description} />
-            </div>
-
-            {/* Project Details */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Project Details</h3>
-              
-              {/* Basic Information */}
-              <div className="mb-6">
-                <h4 className="text-md font-medium text-gray-800 mb-3">Basic Information</h4>
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-gray-600">Project information and configuration details.</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Project Timeline */}
-              <div className="mb-6">
-                <h4 className="text-md font-medium text-gray-800 mb-3">Project Timeline</h4>
-                <div className="space-y-3">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-blue-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-blue-800">Start Date</label>
-                      <p className="text-blue-900 mt-1">January 15, 2024</p>
-                    </div>
-                    <div className="bg-green-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-green-800">Expected End</label>
-                      <p className="text-green-900 mt-1">March 30, 2024</p>
-                    </div>
-                    <div className="bg-purple-50 p-3 rounded-lg">
-                      <label className="text-sm font-medium text-purple-800">Duration</label>
-                      <p className="text-purple-900 mt-1">2.5 months</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Project Scope */}
-              <div className="mb-6">
-                <h4 className="text-md font-medium text-gray-800 mb-3">Project Scope</h4>
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">Objectives</label>
-                    <ul className="text-gray-900 mt-1 list-disc list-inside space-y-1">
-                      <li>Develop a comprehensive bug tracking system</li>
-                      <li>Implement role-based access control</li>
-                      <li>Create intuitive user interface for all user types</li>
-                      <li>Ensure real-time collaboration features</li>
-                    </ul>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">Key Features</label>
-                    <div className="grid grid-cols-2 gap-2 mt-2">
-                      <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded text-sm">Bug Management</span>
-                      <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded text-sm">Team Collaboration</span>
-                      <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded text-sm">Project Tracking</span>
-                      <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded text-sm">User Management</span>
-                      <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded text-sm">Reporting</span>
-                      <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded text-sm">Notifications</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Technical Details */}
-              <div className="mb-6">
-                <h4 className="text-md font-medium text-gray-800 mb-3">Technical Details</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">Technology Stack</label>
-                    <div className="mt-2 space-y-1">
-                      <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm mr-2">React</span>
-                      <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm mr-2">TypeScript</span>
-                      <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm mr-2">Firebase</span>
-                      <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm mr-2">Tailwind CSS</span>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">Development Environment</label>
-                    <div className="mt-2 space-y-1">
-                      <p className="text-gray-900 text-sm">• Node.js v18+</p>
-                      <p className="text-gray-900 text-sm">• Vite Build Tool</p>
-                      <p className="text-gray-900 text-sm">• Firebase Hosting</p>
-                      <p className="text-gray-900 text-sm">• Git Version Control</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
+              <h2 className="text-xl font-bold text-gray-400 mb-4 border-b border-gray-200 pb-2">
+                {selectedDetail ? selectedDetail.title : 'Project Description'}
+              </h2>
+              <MarkdownRenderer 
+                content={selectedDetail ? selectedDetail.content : project.description} 
+              />
             </div>
           </div>
         </div>

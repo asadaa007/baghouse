@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Bug, Plus, Clock, User, MessageSquare } from 'lucide-react';
+import { Button } from '../common/buttons';
 import type { Bug as BugType } from '../../types/bugs';
 
 interface RecentBugsListProps {
@@ -28,8 +29,10 @@ const RecentBugsList: React.FC<RecentBugsListProps> = ({
     switch (status) {
       case 'new': return 'bg-blue-100 text-blue-800';
       case 'in-progress': return 'bg-yellow-100 text-yellow-800';
-      case 'resolved': return 'bg-green-100 text-green-800';
-      case 'closed': return 'bg-gray-100 text-gray-800';
+      case 'revision': return 'bg-orange-100 text-orange-800';
+      case 'ready-for-qc': return 'bg-purple-100 text-purple-800';
+      case 'in-qc': return 'bg-indigo-100 text-indigo-800';
+      case 'completed': return 'bg-green-100 text-green-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -49,13 +52,14 @@ const RecentBugsList: React.FC<RecentBugsListProps> = ({
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-lg font-semibold text-gray-900">Recent Bugs</h3>
-          <button 
+          <Button 
             onClick={onNewBug}
-            className="btn-primary"
+            variant="primary"
+            size="sm"
+            icon={Plus}
           >
-            <Plus className="w-4 h-4 mr-2" />
             New Bug
-          </button>
+          </Button>
         </div>
         <div className="space-y-4">
           {[...Array(5)].map((_, i) => (
@@ -84,13 +88,14 @@ const RecentBugsList: React.FC<RecentBugsListProps> = ({
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-lg font-semibold text-gray-900">Recent Bugs</h3>
-        <button 
+        <Button 
           onClick={onNewBug}
-          className="btn-primary"
+          variant="primary"
+          size="sm"
+          icon={Plus}
         >
-          <Plus className="w-4 h-4 mr-2" />
           New Bug
-        </button>
+        </Button>
       </div>
       
       {bugs.length === 0 ? (
@@ -98,13 +103,14 @@ const RecentBugsList: React.FC<RecentBugsListProps> = ({
           <Bug className="w-12 h-12 text-gray-400 mx-auto mb-4" />
           <h4 className="text-lg font-medium text-gray-900 mb-2">No bugs yet</h4>
           <p className="text-gray-600 mb-4">Get started by creating your first bug report.</p>
-          <button 
+          <Button 
             onClick={onNewBug}
-            className="btn-primary"
+            variant="primary"
+            size="sm"
+            icon={Plus}
           >
-            <Plus className="w-4 h-4 mr-2" />
             Create First Bug
-          </button>
+          </Button>
         </div>
       ) : (
         <div className="space-y-3">

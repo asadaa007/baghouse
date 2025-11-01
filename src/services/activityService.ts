@@ -106,7 +106,7 @@ export const activityService = {
       userId: user.id,
       userName: user.name || user.email,
       projectId: bug.projectId,
-      projectName: bug.projectName,
+      projectName: bug.projectName || 'Unknown Project',
       bugId: bug.id,
       bugTitle: bug.title
     }),
@@ -118,7 +118,7 @@ export const activityService = {
       userId: user.id,
       userName: user.name || user.email,
       projectId: bug.projectId,
-      projectName: bug.projectName,
+      projectName: bug.projectName || 'Unknown Project',
       bugId: bug.id,
       bugTitle: bug.title,
       metadata: { changes }
@@ -131,7 +131,7 @@ export const activityService = {
       userId: user.id,
       userName: user.name || user.email,
       projectId: bug.projectId,
-      projectName: bug.projectName,
+      projectName: bug.projectName || 'Unknown Project',
       bugId: bug.id,
       bugTitle: bug.title
     }),
@@ -143,7 +143,7 @@ export const activityService = {
       userId: user.id,
       userName: user.name || user.email,
       projectId: bug.projectId,
-      projectName: bug.projectName,
+      projectName: bug.projectName || 'Unknown Project',
       bugId: bug.id,
       bugTitle: bug.title
     }),

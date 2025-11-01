@@ -1,5 +1,5 @@
-
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTeams } from '../../context/TeamContext';
 import { useBugs } from '../../context/BugContext';
 import { useProjects } from '../../context/ProjectContext';
@@ -9,38 +9,47 @@ import ActivityFeed from './ActivityFeed';
 import Breadcrumb from '../common/Breadcrumb';
 import Loading from '../common/Loading';
 import { activityService, type ActivityItem } from '../../services/activityService';
+import { getAllUsers } from '../../services/userService';
+import type { AppUser } from '../../types/auth';
 import { 
-  User, 
   CheckCircle, 
   AlertTriangle,
-  Clock,
   Folder,
   Bug,
-  BarChart3,
   Plus,
-
-  Target
+  Layout
 } from 'lucide-react';
+import { Button } from '../common/buttons';
 
 const TeamMemberDashboard = () => {
   const { user } = useAuth();
   const { teams, loading: teamsLoading } = useTeams();
   const { bugs } = useBugs();
   const { projects } = useProjects();
+  const navigate = useNavigate();
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [activitiesLoading, setActivitiesLoading] = useState(true);
+  const [allUsers, setAllUsers] = useState<AppUser[]>([]);
 
   // Fetch recent activities for this user
   useEffect(() => {
     const fetchActivities = async () => {
-      if (!user) return;
+      if (!user || !user.id) return;
       
       try {
         setActivitiesLoading(true);
         const recentActivities = await activityService.getRecentActivities(user.id, 8);
         setActivities(recentActivities);
       } catch (error) {
-        console.error('Error fetching activities:', error);
+        // Silently handle Firebase index errors - activities will be empty until index is ready
+        const firebaseError = error as { code?: string; message?: string };
+        if (firebaseError.code === 'failed-precondition' || firebaseError.message?.includes('index')) {
+          // Index not ready yet, silently fail
+          setActivities([]);
+        } else {
+          console.error('Error fetching activities:', error);
+          setActivities([]);
+        }
       } finally {
         setActivitiesLoading(false);
       }
@@ -49,24 +58,70 @@ const TeamMemberDashboard = () => {
     fetchActivities();
   }, [user]);
 
-  // Filter bugs and projects assigned to this team member
+  // Fetch all users to get manager names
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const users = await getAllUsers();
+        setAllUsers(users);
+      } catch (error) {
+        console.error('Error fetching users:', error);
+      }
+    };
+    fetchUsers();
+  }, []);
+
+  // Filter bugs assigned to this team member
   const assignedBugs = bugs.filter(bug => bug.assignee === user?.id);
+  
+  // Get unique project IDs from assigned bugs
+  const assignedProjectIds = [...new Set(assignedBugs.map(bug => bug.projectId).filter(Boolean))];
+  
+  // Filter projects that have bugs assigned to this team member
   const assignedProjects = projects.filter(project => 
-    project.members?.some(member => member.userId === user?.id) || project.owner === user?.id
+    assignedProjectIds.includes(project.id)
   );
+
+  // Helper function to get manager name for a project
+  const getProjectManagerName = (project: typeof assignedProjects[0]) => {
+    if (!project.teamId) return 'No manager';
+    
+    const team = teams.find(t => t.id === project.teamId);
+    if (!team || !team.managerId) return 'No manager';
+    
+    const manager = allUsers.find(u => u.id === team.managerId);
+    return manager?.name || 'Unknown';
+  };
+
+  // Helper function to get team members count for a project
+  const getProjectTeamMembersCount = (project: typeof assignedProjects[0]) => {
+    if (!project.teamId) return 0;
+    
+    const team = teams.find(t => t.id === project.teamId);
+    if (!team || !team.members) return 0;
+    
+    return team.members.length;
+  };
 
   // Calculate personal stats
   const personalStats = {
     assignedBugs: assignedBugs.length,
-    resolvedBugs: assignedBugs.filter(bug => bug.status === 'resolved' || bug.status === 'closed').length,
+    resolvedBugs: assignedBugs.filter(bug => bug.status === 'completed').length,
     openBugs: assignedBugs.filter(bug => bug.status === 'new' || bug.status === 'in-progress').length,
-    criticalBugs: assignedBugs.filter(bug => bug.priority === 'critical').length,
     assignedProjects: assignedProjects.length,
-    teamMembers: teams.length > 0 ? teams[0].members.length : 0,
-    avgResolutionTime: 1.5, // TODO: Calculate actual average
     completionRate: assignedBugs.length > 0 ? 
-      Math.round((assignedBugs.filter(bug => bug.status === 'resolved' || bug.status === 'closed').length / assignedBugs.length) * 100) : 0,
+      Math.round((assignedBugs.filter(bug => bug.status === 'completed').length / assignedBugs.length) * 100) : 0,
   };
+
+  // Handle viewing bug in Kanban
+  const handleViewInKanban = (bug: typeof assignedBugs[0]) => {
+    if (bug.projectId) {
+      // Navigate to project's kanban view with bug ID in query params
+      const projectId = encodeURIComponent(bug.projectId);
+      navigate(`/projects/${projectId}?bugId=${encodeURIComponent(bug.id)}`);
+    }
+  };
+
 
   const stats = [
     {
@@ -94,44 +149,12 @@ const TeamMemberDashboard = () => {
       description: 'Requires your attention'
     },
     {
-      title: 'Critical Bugs',
-      value: personalStats.criticalBugs,
-      icon: AlertTriangle,
-      color: 'text-red-600',
-      bgColor: 'bg-red-100',
-      description: 'High priority issues'
-    },
-    {
       title: 'My Projects',
       value: personalStats.assignedProjects,
       icon: Folder,
       color: 'text-indigo-600',
       bgColor: 'bg-indigo-100',
       description: 'Projects you\'re working on'
-    },
-    {
-      title: 'Team Size',
-      value: personalStats.teamMembers,
-      icon: User,
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-100',
-      description: 'Members in your team'
-    },
-    {
-      title: 'Avg Resolution',
-      value: `${personalStats.avgResolutionTime}d`,
-      icon: Clock,
-      color: 'text-teal-600',
-      bgColor: 'bg-teal-100',
-      description: 'Your average resolution time'
-    },
-    {
-      title: 'Performance',
-      value: `${personalStats.completionRate}%`,
-      icon: Target,
-      color: 'text-purple-600',
-      bgColor: 'bg-purple-100',
-      description: 'Your completion rate'
     }
   ];
 
@@ -164,76 +187,95 @@ const TeamMemberDashboard = () => {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         {stats.map((stat, index) => (
           <StatsCard key={index} {...stat} />
         ))}
       </div>
 
-      {/* My Assigned Work */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-        {/* My Bugs */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-semibold text-gray-900">My Assigned Bugs</h3>
-            <button className="btn-primary">
-              <Plus className="w-4 h-4 mr-2" />
-              Report Bug
-            </button>
-          </div>
+      {/* My Assigned Bugs */}
+      <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-xl font-semibold text-gray-900">My Assigned Bugs</h3>
+          <Button variant="primary" size="sm" icon={Plus}>
+            Report Bug
+          </Button>
+        </div>
 
-          {assignedBugs.length === 0 ? (
-            <div className="text-center py-8">
-              <Bug className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <h4 className="text-lg font-medium text-gray-900 mb-2">No bugs assigned</h4>
-              <p className="text-gray-600 mb-4">You're all caught up! No bugs assigned to you.</p>
-              <button className="btn-primary">
-                <Plus className="w-4 h-4 mr-2" />
-                Report Bug
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {assignedBugs.slice(0, 5).map((bug) => (
-                <div key={bug.id} className="border border-gray-200 rounded-lg p-3 hover:bg-gray-50 transition-colors">
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="font-medium text-gray-900 text-sm">{bug.title}</h4>
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                      bug.priority === 'critical' ? 'bg-red-100 text-red-800' :
-                      bug.priority === 'high' ? 'bg-orange-100 text-orange-800' :
-                      bug.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-green-100 text-green-800'
+        {assignedBugs.length === 0 ? (
+          <div className="text-center py-8">
+            <Bug className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <h4 className="text-lg font-medium text-gray-900 mb-2">No bugs assigned</h4>
+            <p className="text-gray-600 mb-4">You're all caught up! No bugs assigned to you.</p>
+            <Button variant="primary" size="sm" icon={Plus}>
+              Report Bug
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {assignedBugs.slice(0, 8).map((bug) => (
+              <div key={bug.id} className="bg-white border border-gray-200 rounded-lg p-3 hover:border-gray-300 hover:shadow-sm transition-all duration-200">
+                <div className="flex items-center justify-between gap-4">
+                  {/* Left Section: Bug ID and Title */}
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <span className="font-mono font-semibold text-sm text-gray-600 flex-shrink-0 pr-3 border-r border-gray-300">
+                      {bug.id}
+                    </span>
+                    <h4 className="font-semibold text-gray-900 text-base truncate">
+                      {bug.title}
+                    </h4>
+                  </div>
+
+                  {/* Right Section: Bug Type (Priority) and Kanban Button */}
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className={`inline-flex items-center justify-center px-2.5 py-1 rounded-full text-xs font-semibold ${
+                      bug.priority === 'critical' ? 'bg-red-50 text-red-700 border border-red-200' :
+                      bug.priority === 'high' ? 'bg-orange-50 text-orange-700 border border-orange-200' :
+                      bug.priority === 'medium' ? 'bg-yellow-50 text-yellow-700 border border-yellow-200' :
+                      'bg-green-50 text-green-700 border border-green-200'
                     }`}>
                       {bug.priority}
                     </span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs text-gray-500">
-                    <span>{bug.id}</span>
-                    <span className={`px-2 py-1 rounded-full ${
-                      bug.status === 'resolved' ? 'bg-green-100 text-green-800' :
-                      bug.status === 'in-progress' ? 'bg-blue-100 text-blue-800' :
-                      'bg-gray-100 text-gray-800'
-                    }`}>
-                      {bug.status}
-                    </span>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      icon={Layout}
+                      onClick={() => handleViewInKanban(bug)}
+                    >
+                      View in Kanban
+                    </Button>
                   </div>
                 </div>
-              ))}
-              {assignedBugs.length > 5 && (
-                <div className="text-center pt-3">
-                  <button className="text-sm text-primary hover:text-primary/80">
-                    View all {assignedBugs.length} bugs
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+              </div>
+            ))}
+            {assignedBugs.length > 8 && (
+              <div className="text-center pt-3">
+                <Button variant="ghost" size="sm">
+                  View all {assignedBugs.length} bugs
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
-        {/* My Projects */}
+      {/* Bottom Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Recent Activity */}
+        <ActivityFeed 
+          activities={activities}
+          loading={activitiesLoading}
+          showProject={true}
+          maxItems={6}
+        />
+
+        {/* My Assigned Projects */}
         <div className="bg-white rounded-lg shadow-sm p-6">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-semibold text-gray-900">My Projects</h3>
+            <h3 className="text-xl font-semibold text-gray-900">My Assigned Projects</h3>
+            <Button variant="ghost" size="sm" icon={Folder}>
+              View All
+            </Button>
           </div>
 
           {assignedProjects.length === 0 ? (
@@ -244,7 +286,7 @@ const TeamMemberDashboard = () => {
             </div>
           ) : (
             <div className="space-y-3">
-              {assignedProjects.slice(0, 5).map((project) => (
+              {assignedProjects.slice(0, 6).map((project) => (
                 <div key={project.id} className="border border-gray-200 rounded-lg p-3 hover:bg-gray-50 transition-colors">
                   <div className="flex items-center justify-between mb-2">
                     <h4 className="font-medium text-gray-900 text-sm">{project.name}</h4>
@@ -256,58 +298,24 @@ const TeamMemberDashboard = () => {
                       {project.status}
                     </span>
                   </div>
-                  <p className="text-xs text-gray-600 mb-2">
+                  <p className="text-xs text-gray-600 mb-2 line-clamp-2">
                     {project.shortDescription || 'No description'}
                   </p>
                   <div className="flex items-center justify-between text-xs text-gray-500">
-                    <span>Owner: {project.ownerName}</span>
-                    <span>{project.members?.length || 0} members</span>
+                    <span>Manager: {getProjectManagerName(project)}</span>
+                    <span>{getProjectTeamMembersCount(project)} members</span>
                   </div>
                 </div>
               ))}
-              {assignedProjects.length > 5 && (
+              {assignedProjects.length > 6 && (
                 <div className="text-center pt-3">
-                  <button className="text-sm text-primary hover:text-primary/80">
+                  <Button variant="ghost" size="sm">
                     View all {assignedProjects.length} projects
-                  </button>
+                  </Button>
                 </div>
               )}
             </div>
           )}
-        </div>
-      </div>
-
-      {/* Personal Performance */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Recent Activity */}
-        <ActivityFeed 
-          activities={activities}
-          loading={activitiesLoading}
-          showProject={true}
-          maxItems={6}
-        />
-
-        {/* Quick Actions */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h3 className="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h3>
-          <div className="space-y-3">
-            <button className="w-full flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-              <span className="text-sm font-medium text-gray-900">Report New Bug</span>
-              <Plus className="w-4 h-4 text-gray-400" />
-            </button>
-            <button className="w-full flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-              <span className="text-sm font-medium text-gray-900">View My Bugs</span>
-              <Bug className="w-4 h-4 text-gray-400" />
-            </button>
-            <button className="w-full flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-              <span className="text-sm font-medium text-gray-900">View My Projects</span>
-              <Folder className="w-4 h-4 text-gray-400" />
-            </button>
-            <button className="w-full flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-              <span className="text-sm font-medium text-gray-900">My Performance</span>
-              <BarChart3 className="w-4 h-4 text-gray-400" />
-            </button>
-          </div>
         </div>
       </div>
     </div>

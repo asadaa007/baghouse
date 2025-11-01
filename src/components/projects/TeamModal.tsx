@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, User, Users } from 'lucide-react';
+import { X, Save, User } from 'lucide-react';
 import type { Team, CreateTeamData } from '../../types/auth';
 import { getAllUsers } from '../../services/userService';
+import { useAuth } from '../../context/AuthContext';
 
 interface TeamModalProps {
   isOpen: boolean;
@@ -18,11 +19,12 @@ const TeamModal: React.FC<TeamModalProps> = ({
   team,
   mode
 }) => {
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     managerId: '',
-    teamLeadId: ''
+    teamLeadIds: [] as string[]
   });
   const [loading, setLoading] = useState(false);
   const [availableManagers, setAvailableManagers] = useState<Array<{id: string, name: string, email: string}>>([]);
@@ -69,17 +71,17 @@ const TeamModal: React.FC<TeamModalProps> = ({
         name: team.name,
         description: team.description || '',
         managerId: team.managerId || '',
-        teamLeadId: team.teamLeadId || ''
+        teamLeadIds: team.teamLeadIds || []
       });
     } else if (mode === 'create' || !team) {
       setFormData({
         name: '',
         description: '',
-        managerId: '',
-        teamLeadId: ''
+        managerId: user?.role === 'manager' ? user.id : '',
+        teamLeadIds: []
       });
     }
-  }, [team, mode, isOpen]);
+  }, [team, mode, isOpen, user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,7 +92,7 @@ const TeamModal: React.FC<TeamModalProps> = ({
         name: formData.name,
         description: formData.description?.trim() || undefined,
         managerId: formData.managerId,
-        teamLeadId: formData.teamLeadId || undefined
+        teamLeadIds: formData.teamLeadIds.length > 0 ? formData.teamLeadIds : undefined
       };
       
       await onSave(teamData);
@@ -147,54 +149,92 @@ const TeamModal: React.FC<TeamModalProps> = ({
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Manager *
-            </label>
-            <div className="relative">
-              <select
-                required
-                value={formData.managerId}
-                onChange={(e) => setFormData({ ...formData, managerId: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
-                disabled={loadingUsers}
-              >
-                <option value="">Select a manager</option>
-                {availableManagers.map((manager) => (
-                  <option key={manager.id} value={manager.id}>
-                    {manager.name} ({manager.email})
-                  </option>
-                ))}
-              </select>
-              <User className="absolute right-3 top-2.5 w-4 h-4 text-gray-400" />
+          {/* Only show manager selection if user is not a manager or if editing */}
+          {!(user?.role === 'manager' && mode === 'create') && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Manager *
+              </label>
+              <div className="relative">
+                <select
+                  required
+                  value={formData.managerId}
+                  onChange={(e) => setFormData({ ...formData, managerId: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
+                  disabled={loadingUsers}
+                >
+                  <option value="">Select a manager</option>
+                  {availableManagers.map((manager) => (
+                    <option key={manager.id} value={manager.id}>
+                      {manager.name} ({manager.email})
+                    </option>
+                  ))}
+                </select>
+                <User className="absolute right-3 top-2.5 w-4 h-4 text-gray-400" />
+              </div>
+              {loadingUsers && (
+                <p className="text-xs text-gray-500 mt-1">Loading managers...</p>
+              )}
             </div>
-            {loadingUsers && (
-              <p className="text-xs text-gray-500 mt-1">Loading managers...</p>
-            )}
-          </div>
+          )}
+
+          {/* Show manager info when manager is creating team */}
+          {user?.role === 'manager' && mode === 'create' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Manager
+              </label>
+              <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700">
+                {user.name} ({user.email})
+              </div>
+              <p className="text-xs text-gray-500 mt-1">You will be assigned as the manager of this team</p>
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Team Lead
+              Team Leads (Optional)
             </label>
-            <div className="relative">
-              <select
-                value={formData.teamLeadId}
-                onChange={(e) => setFormData({ ...formData, teamLeadId: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
-                disabled={loadingUsers}
-              >
-                <option value="">Select a team lead (optional)</option>
-                {availableTeamLeads.map((teamLead) => (
-                  <option key={teamLead.id} value={teamLead.id}>
+            <div className="space-y-2">
+              {availableTeamLeads.map((teamLead) => (
+                <label key={teamLead.id} className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.teamLeadIds.includes(teamLead.id)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setFormData({
+                          ...formData,
+                          teamLeadIds: [...formData.teamLeadIds, teamLead.id]
+                        });
+                      } else {
+                        setFormData({
+                          ...formData,
+                          teamLeadIds: formData.teamLeadIds.filter(id => id !== teamLead.id)
+                        });
+                      }
+                    }}
+                    className="rounded border-gray-300 text-primary focus:ring-primary"
+                    disabled={loadingUsers}
+                  />
+                  <span className="text-sm text-gray-700">
                     {teamLead.name} ({teamLead.email})
-                  </option>
-                ))}
-              </select>
-              <Users className="absolute right-3 top-2.5 w-4 h-4 text-gray-400" />
+                  </span>
+                </label>
+              ))}
+              {availableTeamLeads.length === 0 && !loadingUsers && (
+                <p className="text-sm text-gray-500">No team leads available</p>
+              )}
+              {loadingUsers && (
+                <p className="text-xs text-gray-500">Loading team leads...</p>
+              )}
             </div>
-            {loadingUsers && (
-              <p className="text-xs text-gray-500 mt-1">Loading team leads...</p>
+            {formData.teamLeadIds.length > 0 && (
+              <div className="mt-2">
+                <p className="text-xs text-gray-600">
+                  Selected: {formData.teamLeadIds.length} team lead(s)
+                </p>
+              </div>
             )}
           </div>
 

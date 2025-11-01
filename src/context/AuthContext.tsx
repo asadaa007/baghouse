@@ -107,11 +107,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(true);
       setError(null);
       await signInWithEmailAndPassword(auth, credentials.email, credentials.password);
+      
+      // Wait for the auth state to be updated
+      return new Promise<void>((resolve, reject) => {
+        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+          unsubscribe();
+          if (firebaseUser) {
+            const appUser = await convertFirebaseUser(firebaseUser);
+            setUser(appUser);
+            setLoading(false);
+            resolve();
+          } else {
+            setLoading(false);
+            reject(new Error('Authentication failed'));
+          }
+        });
+      });
     } catch (error: any) {
       setError(error.message);
-      throw error;
-    } finally {
       setLoading(false);
+      throw error;
     }
   };
 

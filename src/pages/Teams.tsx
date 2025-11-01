@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTeams } from '../context/TeamContext';
 import { useBugs } from '../context/BugContext';
 import { useProjects } from '../context/ProjectContext';
+import type { Team, CreateTeamData } from '../types/auth';
 import Navigation from '../components/layout/Navigation';
 import BreadcrumbNew from '../components/common/BreadcrumbNew';
 import Loading from '../components/common/Loading';
@@ -22,13 +23,13 @@ import { Button } from '../components/common/buttons';
 
 const Teams = () => {
   const { user } = useAuth();
-  const { teams, loading: teamsLoading, updateTeam } = useTeams();
+  const { teams, loading: teamsLoading, updateTeam, createTeam } = useTeams();
   const { bugs } = useBugs();
   const { projects } = useProjects();
   const [searchTerm, setSearchTerm] = useState('');
   const [teamModalOpen, setTeamModalOpen] = useState(false);
   const [teamDetailsModalOpen, setTeamDetailsModalOpen] = useState(false);
-  const [selectedTeam, setSelectedTeam] = useState<any>(null);
+  const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [teamModalMode, setTeamModalMode] = useState<'create' | 'edit'>('create');
   const [managerNames, setManagerNames] = useState<Record<string, string>>({});
   const [teamLeadNames, setTeamLeadNames] = useState<Record<string, string>>({});
@@ -37,6 +38,7 @@ const Teams = () => {
 
   // Check if user can manage teams
   const canManageTeams = user?.role === 'super_admin' || user?.role === 'manager';
+
 
   // Filter teams based on user role
   const filteredTeams = teams.filter(team => {
@@ -60,12 +62,13 @@ const Teams = () => {
     team.description?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+
   // Fetch manager, team lead names, and member details for display
   useEffect(() => {
     const fetchNames = async () => {
       if (searchFilteredTeams.length > 0) {
         const managerIds = searchFilteredTeams.map(team => team.managerId).filter((id): id is string => Boolean(id));
-        const teamLeadIds = searchFilteredTeams.map(team => team.teamLeadId).filter((id): id is string => Boolean(id));
+        const teamLeadIds = searchFilteredTeams.flatMap(team => team.teamLeadIds || []).filter((id): id is string => Boolean(id));
         
         // Get all unique member IDs from filtered teams
         const allMemberIds = searchFilteredTeams.reduce((acc: string[], team) => {
@@ -87,7 +90,7 @@ const Teams = () => {
     };
 
     fetchNames();
-  }, [searchFilteredTeams]);
+  }, [searchFilteredTeams]); // Use useMemo to stabilize the array reference
 
   // Fetch project counts for each team
   useEffect(() => {
@@ -97,15 +100,17 @@ const Teams = () => {
         try {
           const teamProjects = await projectService.getProjectsByTeam(team.id);
           counts[team.id] = teamProjects.length;
-        } catch (error) {
+        } catch {
           counts[team.id] = 0;
         }
       }
       setProjectCounts(counts);
     };
 
-    fetchProjectCounts();
-  }, [searchFilteredTeams]);
+    if (searchFilteredTeams.length > 0) {
+      fetchProjectCounts();
+    }
+  }, [searchFilteredTeams]); // Use useMemo to stabilize the array reference
 
   const handleCreateTeam = () => {
     setTeamModalMode('create');
@@ -113,25 +118,27 @@ const Teams = () => {
     setTeamModalOpen(true);
   };
 
-  const handleEditTeam = (team: any) => {
+  const handleEditTeam = (team: Team) => {
     setTeamModalMode('edit');
     setSelectedTeam(team);
     setTeamModalOpen(true);
   };
 
-  const handleViewTeam = (team: any) => {
+  const handleViewTeam = (team: Team) => {
     setSelectedTeam(team);
     setTeamDetailsModalOpen(true);
   };
 
 
-  const handleSaveTeam = async (teamData: any) => {
+  const handleSaveTeam = async (teamData: CreateTeamData) => {
     try {
       if (teamModalMode === 'create') {
-        // Create team logic would go here
-        console.log('Creating team:', teamData);
+        await createTeam(teamData);
+        console.log('Team created successfully:', teamData);
       } else {
-        await updateTeam(selectedTeam.id, teamData);
+        if (selectedTeam) {
+          await updateTeam(selectedTeam.id, teamData);
+        }
       }
       setTeamModalOpen(false);
     } catch (error) {
@@ -236,10 +243,10 @@ const Teams = () => {
                 key={team.id}
                 team={team}
                 managerName={managerNames[team.managerId]}
-                teamLeadName={team.teamLeadId ? teamLeadNames[team.teamLeadId] : undefined}
+                teamLeadNames={team.teamLeadIds ? team.teamLeadIds.map(id => teamLeadNames[id]).filter(Boolean) : []}
                 projectCount={projectCounts[team.id] || 0}
                 totalBugs={bugs.filter(b => b.projectId && projects.find(p => p.id === b.projectId)?.teamId === team.id).length}
-                bugsResolved={bugs.filter(b => b.projectId && projects.find(p => p.id === b.projectId)?.teamId === team.id && b.status === 'resolved').length}
+                bugsResolved={bugs.filter(b => b.projectId && projects.find(p => p.id === b.projectId)?.teamId === team.id && b.status === 'completed').length}
                 memberDetails={memberDetails}
                 onView={handleViewTeam}
                 onEdit={canManageTeams ? handleEditTeam : undefined}
@@ -280,7 +287,7 @@ const Teams = () => {
         isOpen={teamModalOpen}
         onClose={() => setTeamModalOpen(false)}
         onSave={handleSaveTeam}
-        team={selectedTeam}
+        team={selectedTeam || undefined}
         mode={teamModalMode}
       />
 
@@ -290,7 +297,7 @@ const Teams = () => {
         onClose={() => setTeamDetailsModalOpen(false)}
         team={selectedTeam}
         managerName={selectedTeam ? managerNames[selectedTeam.managerId] : undefined}
-        teamLeadName={selectedTeam?.teamLeadId ? teamLeadNames[selectedTeam.teamLeadId] : undefined}
+        teamLeadNames={selectedTeam?.teamLeadIds ? selectedTeam.teamLeadIds.map(id => teamLeadNames[id]).filter(Boolean) : []}
         totalBugs={0} // TODO: Calculate actual total bugs
         bugsResolved={0} // TODO: Calculate actual bugs resolved
       />
