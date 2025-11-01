@@ -29,21 +29,13 @@ import {
   MessageSquare,
   User,
   Clock,
-  CheckCircle,
   AlertCircle
 } from 'lucide-react';
 import { Button, IconButton } from '../components/common/buttons';
 import MarkdownRenderer from '../components/common/MarkdownRenderer';
 import MarkdownEditor from '../components/common/MarkdownEditor';
-import type { Bug as BugType, BugStatus } from '../types/bugs';
+import type { Bug as BugType, BugStatus, BugPriority } from '../types/bugs';
 import type { Project } from '../types/projects';
-
-interface KanbanColumn {
-  id: string;
-  title: string;
-  color: string;
-  isDefault?: boolean;
-}
 
 const Kanban = () => {
   const { projectId: rawProjectId, slug } = useParams<{ projectId?: string; slug?: string }>();
@@ -77,12 +69,11 @@ const Kanban = () => {
   const [showTypeSelector, setShowTypeSelector] = useState(false);
   const [newComment, setNewComment] = useState('');
   const [comments, setComments] = useState<any[]>([]);
-  const [availableLabels, setAvailableLabels] = useState<string[]>([
+  const [availableLabels] = useState<string[]>([
     'Blocker', 'Bug', 'Bugherd', 'Content Bug', 'Content Production', 'Duplicate',
     'enhancement', 'Fixed', 'good first issue', 'Help Wanted', 'Invalid', 'Not fixed',
     'On Hold', 'Question', 'Question Answered', 'Task', 'Verified', 'Won\'t fix'
   ]);
-  const [newLabel, setNewLabel] = useState('');
 
   // Find project by ID or slug
   useEffect(() => {
@@ -107,7 +98,7 @@ const Kanban = () => {
           }
         }
         
-        setProject(foundProject);
+        setProject(foundProject || null);
       } catch (error) {
         console.error('Error fetching project:', error);
         // Fallback to context data
@@ -274,10 +265,6 @@ const Kanban = () => {
     return allUsers.find(user => createUserSlug(user) === slug);
   };
 
-  const findUserById = (userId: string) => {
-    return allUsers.find(user => user.id === userId);
-  };
-
   const handleAssigneeSelect = (user: AppUser) => {
     setAssigneeFilter(user.name);
     setAssigneeSearchTerm('');
@@ -364,12 +351,16 @@ const Kanban = () => {
           freshBug.history = freshBug.history
             .map(historyItem => ({
               ...historyItem,
-              timestamp: historyItem.timestamp || historyItem.createdAt || new Date(),
-              userName: historyItem.userName || historyItem.user || 'Unknown',
-              type: historyItem.type || historyItem.field || 'general',
-              action: historyItem.action || historyItem.description || 'Changed'
+              userName: historyItem.userName || 'Unknown',
+              field: historyItem.field || 'general',
+              action: historyItem.action || 'Changed',
+              createdAt: historyItem.createdAt || new Date()
             }))
-            .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+            .sort((a, b) => {
+              const dateA = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt);
+              const dateB = b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt);
+              return dateB.getTime() - dateA.getTime();
+            });
         }
         
         // Initialize comments from bug data
@@ -431,9 +422,9 @@ const Kanban = () => {
         id: Date.now().toString(),
         content: newComment,
         author: user.name,
-        authorId: user.id,
+        userId: user.id,
         createdAt: new Date(),
-        bugId: selectedBug.id
+        updatedAt: new Date()
       };
       
       // Add comment to bug in database
@@ -463,12 +454,14 @@ const Kanban = () => {
     try {
       // Create history entry
       const historyEntry = {
-        type: 'assignee',
+        id: Date.now().toString(),
+        field: 'assignee',
         action: `assigned to ${newAssignee.name}`,
         userName: user.name,
         userId: user.id,
-        timestamp: new Date(),
-        details: `Changed from ${selectedBug.assigneeName || 'unassigned'} to ${newAssignee.name}`
+        createdAt: new Date(),
+        oldValue: selectedBug.assigneeName || 'unassigned',
+        newValue: newAssignee.name
       };
 
       // Update bug assignee with history
@@ -503,12 +496,13 @@ const Kanban = () => {
       
       // Create history entry
       const historyEntry = {
-        type: 'labels',
+        id: Date.now().toString(),
+        field: 'labels',
         action: `added label "${label}"`,
         userName: user.name,
         userId: user.id,
-        timestamp: new Date(),
-        details: `Added label: ${label}`
+        createdAt: new Date(),
+        newValue: label
       };
 
       // Update bug labels with history
@@ -536,12 +530,13 @@ const Kanban = () => {
     
     // Create history entry
     const historyEntry = {
-      type: 'labels',
+      id: Date.now().toString(),
+      field: 'labels',
       action: `removed label "${label}"`,
       userName: user.name,
       userId: user.id,
-      timestamp: new Date(),
-      details: `Removed label: ${label}`
+      createdAt: new Date(),
+      oldValue: label
     };
     
     // Update bug labels with history
@@ -566,17 +561,19 @@ const Kanban = () => {
     try {
       // Create history entry
       const historyEntry = {
-        type: 'priority',
+        id: Date.now().toString(),
+        field: 'priority',
         action: `changed priority to ${newType}`,
         userName: user.name,
         userId: user.id,
-        timestamp: new Date(),
-        details: `Changed from ${selectedBug.priority} to ${newType}`
+        createdAt: new Date(),
+        oldValue: selectedBug.priority,
+        newValue: newType
       };
 
       // Update bug type/priority with history
       await updateBug(selectedBug.id, { 
-        priority: newType,
+        priority: newType as BugPriority,
         history: [...(selectedBug.history || []), historyEntry],
         userId: user.id,
         userName: user.name
@@ -585,7 +582,7 @@ const Kanban = () => {
       // Update local state
       setSelectedBug(prev => prev ? {
         ...prev,
-        priority: newType,
+        priority: newType as BugPriority,
         history: [...(prev.history || []), historyEntry]
       } : null);
       
@@ -1280,38 +1277,34 @@ const Kanban = () => {
 
                       {/* Combined Timeline - History and Comments */}
                       {(() => {
+                        interface TimelineItem {
+                          id: string;
+                          type: 'history' | 'comment';
+                          timestamp: Date;
+                          fullName: string;
+                          firstName: string;
+                          changeType?: string;
+                          actionText?: string;
+                          historyItem?: typeof selectedBug.history[0];
+                          comment?: typeof comments[0];
+                        }
+                        
                         // Combine history and comments into a single timeline
-                        const timelineItems = [];
+                        const timelineItems: TimelineItem[] = [];
                         
                         // Add history items
                         if (selectedBug.history && selectedBug.history.length > 0) {
                           selectedBug.history.forEach((historyItem, index) => {
-                            const fullName = historyItem.userName || historyItem.user || user?.name || 'Unknown';
+                            const fullName = historyItem.userName || user?.name || 'Unknown';
                             const firstName = fullName.split(' ')[0];
                             
                             // Handle different timestamp formats with robust parsing
-                            let timestamp;
+                            let timestamp: Date;
                             try {
-                              if (historyItem.timestamp) {
-                                // Handle Firestore Timestamp objects
-                                if (historyItem.timestamp.toDate && typeof historyItem.timestamp.toDate === 'function') {
-                                  timestamp = historyItem.timestamp.toDate();
-                                } else if (historyItem.timestamp.seconds) {
-                                  // Handle Firestore timestamp with seconds
-                                  timestamp = new Date(historyItem.timestamp.seconds * 1000);
-                                } else {
-                                  timestamp = new Date(historyItem.timestamp);
-                                }
-                              } else if (historyItem.createdAt) {
-                                // Handle Firestore Timestamp objects
-                                if (historyItem.createdAt.toDate && typeof historyItem.createdAt.toDate === 'function') {
-                                  timestamp = historyItem.createdAt.toDate();
-                                } else if (historyItem.createdAt.seconds) {
-                                  // Handle Firestore timestamp with seconds
-                                  timestamp = new Date(historyItem.createdAt.seconds * 1000);
-                                } else {
-                                  timestamp = new Date(historyItem.createdAt);
-                                }
+                              if (historyItem.createdAt) {
+                                timestamp = historyItem.createdAt instanceof Date 
+                                  ? historyItem.createdAt 
+                                  : new Date(historyItem.createdAt);
                               } else {
                                 timestamp = new Date();
                               }
@@ -1324,8 +1317,8 @@ const Kanban = () => {
                               timestamp = new Date();
                             }
                             
-                            const changeType = historyItem.type || historyItem.field || 'general';
-                            const actionText = historyItem.action || historyItem.description || 'Changed';
+                            const changeType = historyItem.field || 'general';
+                            const actionText = historyItem.action || 'Changed';
                             
                             
                             timelineItems.push({
@@ -1347,17 +1340,11 @@ const Kanban = () => {
                             const fullName = comment.author || 'Unknown';
                             const firstName = fullName.split(' ')[0];
                             
-                            let timestamp;
+                            let timestamp: Date;
                             try {
-                              // Handle Firestore Timestamp objects
-                              if (comment.createdAt.toDate && typeof comment.createdAt.toDate === 'function') {
-                                timestamp = comment.createdAt.toDate();
-                              } else if (comment.createdAt.seconds) {
-                                // Handle Firestore timestamp with seconds
-                                timestamp = new Date(comment.createdAt.seconds * 1000);
-                              } else {
-                                timestamp = new Date(comment.createdAt);
-                              }
+                              timestamp = comment.createdAt instanceof Date 
+                                ? comment.createdAt 
+                                : new Date(comment.createdAt);
                               
                               // Validate the timestamp
                               if (isNaN(timestamp.getTime())) {
@@ -1381,8 +1368,9 @@ const Kanban = () => {
                         // Sort by timestamp (oldest first - chronological order)
                         timelineItems.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
                         
-                        return timelineItems.map((item, index) => {
-                          if (item.type === 'history') {
+                        return timelineItems.map((item) => {
+                          if (item.type === 'history' && item.historyItem) {
+                            const historyItem = item.historyItem;
                             return (
                               <div key={item.id} className="flex items-start space-x-3">
                                 <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
@@ -1410,12 +1398,12 @@ const Kanban = () => {
                                       <div className="flex items-center space-x-2">
                                         <span className="text-xs text-gray-500">
                                           {item.changeType === 'priority' ? 'changed priority' : 
-                                           item.changeType === 'labels' ? (item.historyItem.action?.includes('removed') ? 'removed label' : 'added label') :
+                                           item.changeType === 'labels' ? (historyItem.action?.includes('removed') ? 'removed label' : 'added label') :
                                            item.changeType === 'status' ? 'changed status' : item.actionText}
                                         </span>
-                                        {item.changeType === 'priority' && item.historyItem.oldValue && (
+                                        {item.changeType === 'priority' && historyItem.oldValue && (
                                           <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${getPriorityColor((() => {
-                                            const rawValue = item.historyItem.oldValue;
+                                            const rawValue = historyItem.oldValue;
                                             if (rawValue && typeof rawValue === 'string' && rawValue.includes('Changed from') && rawValue.includes('to')) {
                                               const match = rawValue.match(/from\s(.*?)\s+to/);
                                               return match && match[1] ? match[1] : rawValue;
@@ -1423,7 +1411,7 @@ const Kanban = () => {
                                             return rawValue;
                                           })())}`}>
                                             {(() => {
-                                              const rawValue = item.historyItem.oldValue;
+                                              const rawValue = historyItem.oldValue;
                                               if (rawValue && typeof rawValue === 'string' && rawValue.includes('Changed from') && rawValue.includes('to')) {
                                                 const match = rawValue.match(/from\s(.*?)\s+to/);
                                                 return match && match[1] ? match[1] : rawValue;
@@ -1433,10 +1421,8 @@ const Kanban = () => {
                                           </span>
                                         )}
                                         {item.changeType === 'priority' && (() => {
-                                          const rawNewValue = item.historyItem.newValue || 
-                                                             item.historyItem.details || 
-                                                             item.historyItem.action?.replace('Priority changed to ', '') ||
-                                                             item.historyItem.description?.replace('Priority changed to ', '') ||
+                                          const rawNewValue = historyItem.newValue || 
+                                                             historyItem.action?.replace('Priority changed to ', '') ||
                                                              'unknown';
                                           let displayNewValue = rawNewValue;
                                           if (typeof rawNewValue === 'string' && rawNewValue.includes('Changed from') && rawNewValue.includes('to')) {
@@ -1451,8 +1437,8 @@ const Kanban = () => {
                                             </span>
                                           );
                                         })()}
-                                        {item.changeType === 'status' && item.historyItem.oldValue && (() => {
-                                          const rawValue = item.historyItem.oldValue;
+                                        {item.changeType === 'status' && historyItem.oldValue && (() => {
+                                          const rawValue = historyItem.oldValue;
                                           let statusValue = rawValue;
                                           if (rawValue && typeof rawValue === 'string' && rawValue.includes('Changed from') && rawValue.includes('to')) {
                                             const match = rawValue.match(/from\s(.*?)\s+to/);
@@ -1465,10 +1451,8 @@ const Kanban = () => {
                                           );
                                         })()}
                                         {item.changeType === 'status' && (() => {
-                                          const rawNewValue = item.historyItem.newValue || 
-                                                             item.historyItem.details || 
-                                                             item.historyItem.action?.replace('Status changed to ', '') ||
-                                                             item.historyItem.description?.replace('Status changed to ', '') ||
+                                          const rawNewValue = historyItem.newValue || 
+                                                             historyItem.action?.replace('Status changed to ', '') ||
                                                              'unknown';
                                           let displayNewValue = rawNewValue;
                                           if (typeof rawNewValue === 'string' && rawNewValue.includes('Changed from') && rawNewValue.includes('to')) {
@@ -1484,7 +1468,7 @@ const Kanban = () => {
                                           );
                                         })()}
                                         {item.changeType === 'labels' && (() => {
-                                          let labelValue = item.historyItem.newValue || item.historyItem.details || item.historyItem.action || 'unknown';
+                                          let labelValue = historyItem.newValue || historyItem.action || 'unknown';
                                           
                                           // Remove "Added label:" or "Removed label:" prefixes
                                           if (typeof labelValue === 'string') {
@@ -1742,7 +1726,7 @@ const Kanban = () => {
                   <IconButton
                     onClick={() => handleEditBug(selectedBug)}
                     icon={Edit2}
-                    variant="primary"
+                    variant="default"
                     size="sm"
                     title="Edit Bug"
                   />

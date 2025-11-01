@@ -17,7 +17,7 @@ import {
   ChevronUp,
   ChevronDown
 } from 'lucide-react';
-import { Button } from '../components/common/buttons';
+import { Button, IconButton } from '../components/common/buttons';
 import MarkdownEditor from '../components/common/MarkdownEditor';
 import type { Project, ProjectSettings, ProjectDetail } from '../types/projects';
 
@@ -462,29 +462,29 @@ const ProjectEdit = () => {
                         />
                       </div>
                       <div className="flex items-center space-x-1">
-                        <Button
-                          type="button"
+                        <IconButton
                           onClick={() => moveDetailUp(detail.id)}
                           variant="ghost"
                           size="sm"
                           icon={ChevronUp}
                           disabled={index === 0}
+                          title="Move up"
                         />
-                        <Button
-                          type="button"
+                        <IconButton
                           onClick={() => moveDetailDown(detail.id)}
                           variant="ghost"
                           size="sm"
                           icon={ChevronDown}
                           disabled={index === details.length - 1}
+                          title="Move down"
                         />
-                        <Button
-                          type="button"
+                        <IconButton
                           onClick={() => deleteDetail(detail.id)}
                           variant="ghost"
                           size="sm"
                           icon={Trash2}
                           className="text-red-600 hover:text-red-700"
+                          title="Delete"
                         />
                       </div>
                     </div>

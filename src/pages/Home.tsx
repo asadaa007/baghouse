@@ -9,10 +9,7 @@ import {
   ArrowRight,
   Shield,
   Zap,
-  Clock,
   Star,
-  TrendingUp,
-  Target,
   Workflow
 } from 'lucide-react';
 

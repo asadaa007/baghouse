@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useProjects } from '../context/ProjectContext';
@@ -37,7 +36,7 @@ const BugAdd = () => {
     );
   }
 
-  const handleSubmit = async (bugData: any) => {
+  const handleSubmit = async () => {
     // Bug has been successfully created by BugForm
     // Navigate back to bugs page
     navigate('/bugs');

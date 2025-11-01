@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, User, Users } from 'lucide-react';
+import { X, Save, User } from 'lucide-react';
 import type { Team, CreateTeamData } from '../../types/auth';
 import { getAllUsers } from '../../services/userService';
 import { useAuth } from '../../context/AuthContext';

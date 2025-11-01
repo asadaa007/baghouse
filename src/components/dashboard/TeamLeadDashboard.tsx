@@ -12,22 +12,12 @@ import Breadcrumb from '../common/Breadcrumb';
 import Loading from '../common/Loading';
 import { activityService, type ActivityItem } from '../../services/activityService';
 import { 
-  User, 
   CheckCircle, 
   AlertTriangle,
-  Clock,
   Folder,
   Bug,
   BarChart3,
-  Plus,
-  Target,
-  Users,
-  TrendingUp,
-  Shield,
-  Gauge,
-  Award,
-  Calendar,
-  Settings
+  Users
 } from 'lucide-react';
 import { Button, LinkButton } from '../common/buttons';
 
@@ -66,9 +56,6 @@ const TeamLeadDashboard = () => {
     teamLeadTeam?.members?.some(memberId => project.members?.some(member => member.userId === memberId))
   );
   const assignedBugs = bugs.filter(bug => bug.assignee === user?.id);
-  const assignedProjects = projects.filter(project => 
-    project.members?.some(member => member.userId === user?.id) || project.owner === user?.id
-  );
 
   // Calculate team lead stats
   const teamStats = {

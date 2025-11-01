@@ -68,8 +68,8 @@ const ManagerDashboard = () => {
   const teamProjects = projects.filter(project => managedTeamIds.includes(project.teamId || ''));
 
   // Calculate team stats
-  const resolvedBugs = teamBugs.filter(bug => bug.status === 'completed' || bug.status === 'resolved').length;
-  const openBugs = teamBugs.filter(bug => bug.status === 'new' || bug.status === 'in-progress' || bug.status === 'in_progress').length;
+  const resolvedBugs = teamBugs.filter(bug => bug.status === 'completed').length;
+  const openBugs = teamBugs.filter(bug => bug.status === 'new' || bug.status === 'in-progress').length;
   const criticalBugs = teamBugs.filter(bug => bug.priority === 'critical').length;
   const activeProjects = teamProjects.filter(p => p.status === 'active').length;
   const completedProjects = teamProjects.filter(p => p.status === 'complete').length;
@@ -80,7 +80,7 @@ const ManagerDashboard = () => {
   // Calculate average resolution time
   const calculateAvgResolutionTime = () => {
     const resolvedBugsWithTimestamps = teamBugs.filter(bug => 
-      (bug.status === 'completed' || bug.status === 'resolved') && 
+      bug.status === 'completed' && 
       bug.createdAt && 
       bug.updatedAt
     );

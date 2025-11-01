@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useBugs } from '../context/BugContext';
@@ -8,7 +8,7 @@ import MarkdownEditor from '../components/common/MarkdownEditor';
 import MarkdownRenderer from '../components/common/MarkdownRenderer';
 import { Button, IconButton } from '../components/common/buttons';
 import Navigation from '../components/layout/Navigation';
-import type { Bug, BugComment } from '../types/bugs';
+import type { Bug, Comment } from '../types/bugs';
 import type { AppUser } from '../types/auth';
 import { 
   ArrowLeft, 
@@ -33,14 +33,13 @@ const BugDetailsView = () => {
   const [bug, setBug] = useState<Bug | null>(null);
   const [loading, setLoading] = useState(true);
   const [allUsers, setAllUsers] = useState<AppUser[]>([]);
-  const [comments, setComments] = useState<BugComment[]>([]);
+  const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [showAssigneeSelector, setShowAssigneeSelector] = useState(false);
   const [showLabelManager, setShowLabelManager] = useState(false);
   const [showTypeSelector, setShowTypeSelector] = useState(false);
   const [assigneeSearchTerm, setAssigneeSearchTerm] = useState('');
   const [availableLabels] = useState(['Bug', 'Feature', 'Enhancement', 'Task', 'Fixed', 'Critical', 'High Priority']);
-  const [newLabel, setNewLabel] = useState('');
 
   // Load bug data
   useEffect(() => {
@@ -121,13 +120,13 @@ const BugDetailsView = () => {
     if (!newComment.trim() || !bug || !user) return;
 
     try {
-      const comment: BugComment = {
+      const comment: Comment = {
         id: Date.now().toString(),
         content: newComment.trim(),
         author: user.name || 'Unknown',
-        authorId: user.id,
+        userId: user.id,
         createdAt: new Date(),
-        bugId: bug.id
+        updatedAt: new Date()
       };
 
       const updatedComments = [...comments, comment];
@@ -139,11 +138,10 @@ const BugDetailsView = () => {
           ...(bug.history || []),
           {
             id: Date.now().toString(),
-            type: 'general',
             action: 'added a comment',
             userName: user.name || 'Unknown',
             userId: user.id,
-            timestamp: new Date()
+            createdAt: new Date()
           }
         ]
       });
@@ -160,11 +158,11 @@ const BugDetailsView = () => {
     try {
       const historyEntry = {
         id: Date.now().toString(),
-        type: 'assignee' as const,
         action: 'changed assignee',
+        field: 'assignee',
         userName: user.name || 'Unknown',
         userId: user.id,
-        timestamp: new Date(),
+        createdAt: new Date(),
         oldValue: bug.assigneeName || 'Unassigned',
         newValue: user.name || 'Unknown'
       };
@@ -189,11 +187,11 @@ const BugDetailsView = () => {
       const newLabels = [...(bug.labels || []), label];
       const historyEntry = {
         id: Date.now().toString(),
-        type: 'labels' as const,
         action: 'added label',
+        field: 'labels',
         userName: user?.name || 'Unknown',
         userId: user?.id || 'unknown',
-        timestamp: new Date(),
+        createdAt: new Date(),
         newValue: label
       };
 
@@ -215,11 +213,11 @@ const BugDetailsView = () => {
       const newLabels = (bug.labels || []).filter(l => l !== label);
       const historyEntry = {
         id: Date.now().toString(),
-        type: 'labels' as const,
         action: 'removed label',
+        field: 'labels',
         userName: user?.name || 'Unknown',
         userId: user?.id || 'unknown',
-        timestamp: new Date(),
+        createdAt: new Date(),
         oldValue: label
       };
 
@@ -240,11 +238,11 @@ const BugDetailsView = () => {
     try {
       const historyEntry = {
         id: Date.now().toString(),
-        type: 'priority' as const,
         action: 'changed priority',
+        field: 'priority',
         userName: user?.name || 'Unknown',
         userId: user?.id || 'unknown',
-        timestamp: new Date(),
+        createdAt: new Date(),
         oldValue: bug.priority,
         newValue: priority
       };
@@ -421,32 +419,32 @@ const BugDetailsView = () => {
 
               {/* Combined Timeline - History and Comments */}
               {(() => {
-                const timelineItems = [];
+                interface TimelineItem {
+                  id: string;
+                  type: 'history' | 'comment';
+                  timestamp: Date;
+                  fullName: string;
+                  firstName: string;
+                  changeType?: string;
+                  actionText?: string;
+                  historyItem?: typeof bug.history[0];
+                  comment?: typeof comments[0];
+                }
+                
+                const timelineItems: TimelineItem[] = [];
                 
                 // Add history items
                 if (bug.history && bug.history.length > 0) {
                   bug.history.forEach((historyItem, index) => {
-                    const fullName = historyItem.userName || historyItem.user || user?.name || 'Unknown';
+                    const fullName = historyItem.userName || user?.name || 'Unknown';
                     const firstName = fullName.split(' ')[0];
                     
-                    let timestamp;
+                    let timestamp: Date;
                     try {
-                      if (historyItem.timestamp) {
-                        if (historyItem.timestamp.toDate && typeof historyItem.timestamp.toDate === 'function') {
-                          timestamp = historyItem.timestamp.toDate();
-                        } else if (historyItem.timestamp.seconds) {
-                          timestamp = new Date(historyItem.timestamp.seconds * 1000);
-                        } else {
-                          timestamp = new Date(historyItem.timestamp);
-                        }
-                      } else if (historyItem.createdAt) {
-                        if (historyItem.createdAt.toDate && typeof historyItem.createdAt.toDate === 'function') {
-                          timestamp = historyItem.createdAt.toDate();
-                        } else if (historyItem.createdAt.seconds) {
-                          timestamp = new Date(historyItem.createdAt.seconds * 1000);
-                        } else {
-                          timestamp = new Date(historyItem.createdAt);
-                        }
+                      if (historyItem.createdAt) {
+                        timestamp = historyItem.createdAt instanceof Date 
+                          ? historyItem.createdAt 
+                          : new Date(historyItem.createdAt);
                       } else {
                         timestamp = new Date();
                       }
@@ -458,8 +456,8 @@ const BugDetailsView = () => {
                       timestamp = new Date();
                     }
                     
-                    const changeType = historyItem.type || historyItem.field || 'general';
-                    const actionText = historyItem.action || historyItem.description || 'Changed';
+                    const changeType = historyItem.field || 'general';
+                    const actionText = historyItem.action || 'Changed';
                     
                     timelineItems.push({
                       id: `history-${index}`,
@@ -504,8 +502,9 @@ const BugDetailsView = () => {
                 // Sort by timestamp (oldest first)
                 timelineItems.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
                 
-                return timelineItems.map((item, index) => {
-                  if (item.type === 'history') {
+                return timelineItems.map((item) => {
+                  if (item.type === 'history' && item.historyItem) {
+                    const historyItem = item.historyItem;
                     return (
                       <div key={item.id} className="flex items-start space-x-3 mb-4">
                         <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
@@ -533,12 +532,12 @@ const BugDetailsView = () => {
                               <div className="flex items-center space-x-2">
                                 <span className="text-xs text-gray-500">
                                   {item.changeType === 'priority' ? 'changed priority' : 
-                                   item.changeType === 'labels' ? (item.historyItem.action?.includes('removed') ? 'removed label' : 'added label') :
+                                   item.changeType === 'labels' ? (historyItem.action?.includes('removed') ? 'removed label' : 'added label') :
                                    item.changeType === 'status' ? 'changed status' : item.actionText}
                                 </span>
-                                {item.changeType === 'priority' && item.historyItem.oldValue && (
+                                {item.changeType === 'priority' && historyItem.oldValue && (
                                   <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${getPriorityColor((() => {
-                                    const rawValue = item.historyItem.oldValue;
+                                    const rawValue = historyItem.oldValue;
                                     if (rawValue && typeof rawValue === 'string' && rawValue.includes('Changed from') && rawValue.includes('to')) {
                                       const match = rawValue.match(/from\s(.*?)\s+to/);
                                       return match && match[1] ? match[1] : rawValue;
@@ -546,7 +545,7 @@ const BugDetailsView = () => {
                                     return rawValue;
                                   })())}`}>
                                     {(() => {
-                                      const rawValue = item.historyItem.oldValue;
+                                      const rawValue = historyItem.oldValue;
                                       if (rawValue && typeof rawValue === 'string' && rawValue.includes('Changed from') && rawValue.includes('to')) {
                                         const match = rawValue.match(/from\s(.*?)\s+to/);
                                         return match && match[1] ? match[1] : rawValue;
@@ -556,10 +555,8 @@ const BugDetailsView = () => {
                                   </span>
                                 )}
                                 {item.changeType === 'priority' && (() => {
-                                  const rawNewValue = item.historyItem.newValue || 
-                                                     item.historyItem.details || 
-                                                     item.historyItem.action?.replace('Priority changed to ', '') ||
-                                                     item.historyItem.description?.replace('Priority changed to ', '') ||
+                                  const rawNewValue = historyItem.newValue || 
+                                                     historyItem.action?.replace('Priority changed to ', '') ||
                                                      'unknown';
                                   let displayNewValue = rawNewValue;
                                   if (typeof rawNewValue === 'string' && rawNewValue.includes('Changed from') && rawNewValue.includes('to')) {
@@ -574,9 +571,9 @@ const BugDetailsView = () => {
                                     </span>
                                   );
                                 })()}
-                                {item.changeType === 'status' && item.historyItem.oldValue && (
+                                {item.changeType === 'status' && historyItem.oldValue && (
                                   <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${getStatusColor((() => {
-                                    const rawValue = item.historyItem.oldValue;
+                                    const rawValue = historyItem.oldValue;
                                     if (rawValue && typeof rawValue === 'string' && rawValue.includes('Changed from') && rawValue.includes('to')) {
                                       const match = rawValue.match(/from\s(.*?)\s+to/);
                                       return match && match[1] ? match[1] : rawValue;
@@ -584,7 +581,7 @@ const BugDetailsView = () => {
                                     return rawValue;
                                   })())}`}>
                                     {(() => {
-                                      const rawValue = item.historyItem.oldValue;
+                                      const rawValue = historyItem.oldValue;
                                       if (rawValue && typeof rawValue === 'string' && rawValue.includes('Changed from') && rawValue.includes('to')) {
                                         const match = rawValue.match(/from\s(.*?)\s+to/);
                                         return match && match[1] ? match[1] : rawValue;
@@ -594,10 +591,8 @@ const BugDetailsView = () => {
                                   </span>
                                 )}
                                 {item.changeType === 'status' && (() => {
-                                  const rawNewValue = item.historyItem.newValue || 
-                                                     item.historyItem.details || 
-                                                     item.historyItem.action?.replace('Status changed to ', '') ||
-                                                     item.historyItem.description?.replace('Status changed to ', '') ||
+                                  const rawNewValue = historyItem.newValue || 
+                                                     historyItem.action?.replace('Status changed to ', '') ||
                                                      'unknown';
                                   let displayNewValue = rawNewValue;
                                   if (typeof rawNewValue === 'string' && rawNewValue.includes('Changed from') && rawNewValue.includes('to')) {
@@ -613,7 +608,7 @@ const BugDetailsView = () => {
                                   );
                                 })()}
                                 {item.changeType === 'labels' && (() => {
-                                  let labelValue = item.historyItem.newValue || item.historyItem.details || item.historyItem.action || 'unknown';
+                                  let labelValue = historyItem.newValue || historyItem.action || 'unknown';
                                   
                                   if (typeof labelValue === 'string') {
                                     labelValue = labelValue.replace(/.*?(Added|Removed)\s+label:\s*/, '');
@@ -639,8 +634,9 @@ const BugDetailsView = () => {
                         </div>
                       </div>
                     );
-                  } else {
+                  } else if (item.type === 'comment' && item.comment) {
                     // Comment item
+                    const comment = item.comment;
                     return (
                       <div key={item.id} className="flex items-start space-x-3 mb-4">
                         <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
@@ -663,13 +659,14 @@ const BugDetailsView = () => {
                               </span>
                             </div>
                             <div className="prose prose-sm max-w-none">
-                              <MarkdownRenderer content={item.comment.content} />
+                              <MarkdownRenderer content={comment.content} />
                             </div>
                           </div>
                         </div>
                       </div>
                     );
                   }
+                  return null;
                 });
               })()}
 
