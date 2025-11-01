@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Edit, 
   Trash2,ChevronUp, 
@@ -8,10 +9,10 @@ import {
   User,
   Tag,
   CheckSquare,
-  Square
+  Square,
+  Layout
 } from 'lucide-react';
 import { Button, IconButton } from '../common/buttons';
-import BugViewModal from './BugViewModal';
 import type { Bug } from '../../types/bugs';
 
 interface BugTableProps {
@@ -36,11 +37,10 @@ const BugTable: React.FC<BugTableProps> = ({
   onEditBug,
   loading = false
 }) => {
+  const navigate = useNavigate();
   const [selectedBugs, setSelectedBugs] = useState<Set<string>>(new Set());
   const [sortField, setSortField] = useState<SortField>('createdAt');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
-  const [viewModalOpen, setViewModalOpen] = useState(false);
-  const [selectedBug, setSelectedBug] = useState<Bug | null>(null);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -96,8 +96,16 @@ const BugTable: React.FC<BugTableProps> = ({
   };
 
   const handleViewBug = (bug: Bug) => {
-    setSelectedBug(bug);
-    setViewModalOpen(true);
+    const cleanBugId = bug.id.replace('#', '');
+    navigate(`/bugs/${cleanBugId}/view`);
+  };
+
+  const handleViewInKanban = (bug: Bug) => {
+    if (bug.projectId) {
+      // Navigate to project's kanban view with bug ID in query params
+      const projectId = encodeURIComponent(bug.projectId);
+      navigate(`/projects/${projectId}?bugId=${encodeURIComponent(bug.id)}`);
+    }
   };
 
   const handleEditBug = (bug: Bug) => {
@@ -108,9 +116,10 @@ const BugTable: React.FC<BugTableProps> = ({
     switch (status) {
       case 'new': return 'bg-blue-100 text-blue-800';
       case 'in-progress': return 'bg-yellow-100 text-yellow-800';
-      case 'review': return 'bg-purple-100 text-purple-800';
-      case 'resolved': return 'bg-green-100 text-green-800';
-      case 'closed': return 'bg-gray-100 text-gray-800';
+      case 'revision': return 'bg-orange-100 text-orange-800';
+      case 'ready-for-qc': return 'bg-purple-100 text-purple-800';
+      case 'in-qc': return 'bg-indigo-100 text-indigo-800';
+      case 'completed': return 'bg-green-100 text-green-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -196,7 +205,7 @@ const BugTable: React.FC<BugTableProps> = ({
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left">
+                <th className="w-12 px-2 py-3 text-left">
                   <IconButton
                     onClick={handleSelectAll}
                     variant="ghost"
@@ -204,7 +213,7 @@ const BugTable: React.FC<BugTableProps> = ({
                     icon={selectedBugs.size === bugs.length ? CheckSquare : Square}
                   />
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-80">
                   Bug
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -262,7 +271,7 @@ const BugTable: React.FC<BugTableProps> = ({
             <tbody className="bg-white divide-y divide-gray-200">
               {sortedBugs.map((bug, index) => (
                 <tr key={`${bug.id}-${bug.projectId}-${index}`} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="w-12 px-2 py-4 whitespace-nowrap">
                     <IconButton
                       onClick={() => handleSelectBug(bug.id)}
                       variant="ghost"
@@ -270,22 +279,29 @@ const BugTable: React.FC<BugTableProps> = ({
                       icon={selectedBugs.has(bug.id) ? CheckSquare : Square}
                     />
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className={`w-3 h-3 rounded-full ${getPriorityColor(bug.priority)} mr-3`} />
+                  <td className="px-6 py-4 w-80">
+                    <div className="flex items-start">
+                      <div className={`w-3 h-3 rounded-full ${getPriorityColor(bug.priority)} mr-3 flex-shrink-0 mt-1`} />
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-gray-900">
+                        <div className="flex items-start gap-2 text-sm font-semibold text-gray-900">
+                          <span className="font-mono text-xs font-bold text-gray-700 flex-shrink-0 pr-2 border-r border-gray-300 leading-5">
+                            {bug.customId || bug.id}
+                          </span>
                           <button
                             onClick={() => handleViewBug(bug)}
-                            className="text-left hover:text-primary transition-colors cursor-pointer"
+                            className="text-left hover:text-primary transition-colors cursor-pointer flex-1 min-w-0 font-semibold leading-5"
+                            title={bug.title}
                           >
-                            {bug.title}
+                            <div className="break-words">
+                              {bug.title}
+                            </div>
                           </button>
                         </div>
-                        <div className="flex items-center space-x-4 mt-1">
-                          <span className="text-sm text-gray-500">{bug.customId || bug.id}</span>
+                        <div className="flex items-center space-x-3 mt-2">
                           {bug.projectName && (
-                            <span className="text-sm text-gray-500">{bug.projectName}</span>
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                              {bug.projectName}
+                            </span>
                           )}
                           {bug.comments && bug.comments.length > 0 && (
                             <div className="flex items-center text-sm text-gray-500">
@@ -309,11 +325,12 @@ const BugTable: React.FC<BugTableProps> = ({
                       onChange={(e) => onStatusChange(bug.id, e.target.value)}
                       className={`px-2 py-1 text-xs font-medium rounded-full border-0 ${getStatusColor(bug.status)} focus:ring-2 focus:ring-primary focus:ring-offset-0`}
                     >
-                      <option value="new">New</option>
+                      <option value="new">ToDo</option>
                       <option value="in-progress">In Progress</option>
-                      <option value="review">Review</option>
-                      <option value="resolved">Resolved</option>
-                      <option value="closed">Closed</option>
+                      <option value="revision">Revision</option>
+                      <option value="ready-for-qc">Ready for QC</option>
+                      <option value="in-qc">In QC</option>
+                      <option value="completed">Completed</option>
                     </select>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -353,6 +370,13 @@ const BugTable: React.FC<BugTableProps> = ({
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center justify-end space-x-2">
                       <IconButton
+                        onClick={() => handleViewInKanban(bug)}
+                        variant="ghost"
+                        size="sm"
+                        icon={Layout}
+                        title="View in Kanban"
+                      />
+                      <IconButton
                         onClick={() => handleEditBug(bug)}
                         variant="ghost"
                         size="sm"
@@ -387,17 +411,6 @@ const BugTable: React.FC<BugTableProps> = ({
         )}
       </div>
 
-      {/* Bug View Modal */}
-      <BugViewModal
-        isOpen={viewModalOpen}
-        onClose={() => {
-          setViewModalOpen(false);
-          setSelectedBug(null);
-        }}
-        bug={selectedBug}
-        onEdit={handleEditBug}
-        onDelete={onDeleteBug}
-      />
     </>
   );
 };

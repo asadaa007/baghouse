@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import Navigation from '../components/layout/Navigation';
 import SuperAdminDashboard from '../components/dashboard/SuperAdminDashboard';
 import ManagerDashboard from '../components/dashboard/ManagerDashboard';
+import TeamLeadDashboard from '../components/dashboard/TeamLeadDashboard';
 import TeamMemberDashboard from '../components/dashboard/TeamMemberDashboard';
 import Loading from '../components/common/Loading';
 
@@ -41,6 +42,8 @@ const Dashboard = () => {
         return <SuperAdminDashboard />;
       case 'manager':
         return <ManagerDashboard />;
+      case 'team_lead':
+        return <TeamLeadDashboard />;
       case 'team_member':
         return <TeamMemberDashboard />;
       default:

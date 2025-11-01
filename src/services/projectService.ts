@@ -106,6 +106,11 @@ export const projectService = {
         return {
           id: data.id || doc.id, // Use the stored id field if available, fallback to doc.id
           ...data,
+          startDate: data.startDate && data.startDate.toDate ? data.startDate.toDate() : data.startDate,
+          expectedEndDate: data.expectedEndDate && data.expectedEndDate.toDate ? data.expectedEndDate.toDate() : data.expectedEndDate,
+          technologyStack: data.technologyStack || [],
+          developmentEnvironment: data.developmentEnvironment || [],
+          customColumns: data.customColumns || [],
           createdAt: data.createdAt?.toDate() || new Date(),
           updatedAt: data.updatedAt?.toDate() || new Date()
         };
@@ -127,6 +132,11 @@ export const projectService = {
         return {
           id: data.id || docSnap.id, // Use the stored id field if available, fallback to doc.id
           ...data,
+          startDate: data.startDate && data.startDate.toDate ? data.startDate.toDate() : data.startDate,
+          expectedEndDate: data.expectedEndDate && data.expectedEndDate.toDate ? data.expectedEndDate.toDate() : data.expectedEndDate,
+          technologyStack: data.technologyStack || [],
+          developmentEnvironment: data.developmentEnvironment || [],
+          customColumns: data.customColumns || [],
           createdAt: data.createdAt?.toDate() || new Date(),
           updatedAt: data.updatedAt?.toDate() || new Date()
         } as Project;
@@ -149,6 +159,11 @@ export const projectService = {
           return {
             id: data.id || doc.id,
             ...data,
+            startDate: data.startDate && data.startDate.toDate ? data.startDate.toDate() : data.startDate,
+            expectedEndDate: data.expectedEndDate && data.expectedEndDate.toDate ? data.expectedEndDate.toDate() : data.expectedEndDate,
+            technologyStack: data.technologyStack || [],
+            developmentEnvironment: data.developmentEnvironment || [],
+            customColumns: data.customColumns || [],
             createdAt: data.createdAt?.toDate() || new Date(),
             updatedAt: data.updatedAt?.toDate() || new Date()
           } as Project;

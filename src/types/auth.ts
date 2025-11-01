@@ -17,7 +17,7 @@ export interface Team {
   name: string;
   description?: string;
   managerId: string; // User ID of the team manager
-  teamLeadId?: string; // User ID of the team lead
+  teamLeadIds?: string[]; // Array of team lead user IDs
   members: string[]; // Array of user IDs
   createdAt: Date;
   updatedAt: Date;
@@ -41,7 +41,7 @@ export interface CreateTeamData {
   name: string;
   description?: string;
   managerId: string;
-  teamLeadId?: string;
+  teamLeadIds?: string[];
 }
 
 export interface AuthState {

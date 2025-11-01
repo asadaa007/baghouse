@@ -34,6 +34,7 @@ interface UserItem {
   email: string;
   role: UserRole;
   teamId?: string;
+  managedTeams?: string[]; // For managers - teams they manage
   createdAt: Date;
   updatedAt: Date;
   createdBy?: string;
@@ -55,6 +56,34 @@ const UserManagement = () => {
   const [successMessage, setSuccessMessage] = useState('');
   const [editingUser, setEditingUser] = useState<UserItem | null>(null);
   const [teamNames, setTeamNames] = useState<Record<string, string>>({});
+  
+  // Function to get teams managed by a user
+  const getManagedTeams = (userItem: UserItem): string[] => {
+    if (userItem.role === 'manager') {
+      // For managers, get teams where they are the manager
+      return teams.filter(team => team.managerId === userItem.id).map(team => team.name);
+    } else if (userItem.role === 'team_lead') {
+      // For team leads, get teams where they are a team lead
+      const leadTeams = teams.filter(team => team.teamLeadIds?.includes(userItem.id)).map(team => team.name);
+      
+      // Fallback: if no teams found via teamLeadIds, check if they have a teamId
+      if (leadTeams.length === 0 && userItem.teamId) {
+        const fallbackTeam = teams.find(team => team.id === userItem.teamId);
+        if (fallbackTeam) {
+          return [fallbackTeam.name];
+        }
+      }
+      
+      return leadTeams;
+    } else if (userItem.managedTeams && userItem.managedTeams.length > 0) {
+      // If user has managedTeams field, use that
+      return userItem.managedTeams.map(teamId => teamNames[teamId] || 'Unknown Team');
+    } else if (userItem.teamId) {
+      // For other roles, show their assigned team
+      return [teamNames[userItem.teamId] || 'Unknown Team'];
+    }
+    return ['No Team'];
+  };
 
   const [userFormData, setUserFormData] = useState<UserFormData>({
     name: '',
@@ -416,7 +445,7 @@ const UserManagement = () => {
                 <select
                   value={roleFilter}
                   onChange={(e) => setRoleFilter(e.target.value as UserRole | 'all')}
-                  className="px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
+                  className="w-48 px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
                 >
                   <option value="all">All Roles</option>
                   <option value="super_admin">Super Admins</option>
@@ -471,7 +500,6 @@ const UserManagement = () => {
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Team</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
@@ -498,7 +526,6 @@ const UserManagement = () => {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{userItem.email}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">-</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {userItem.createdAt?.toLocaleDateString() || 'N/A'}
                         </td>
@@ -581,7 +608,16 @@ const UserManagement = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{userItem.email}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {userItem.teamId ? teamNames[userItem.teamId] || 'Unknown Team' : 'No Team'}
+                          <div className="flex flex-wrap gap-1">
+                            {getManagedTeams(userItem).map((teamName, index) => (
+                              <span
+                                key={index}
+                                className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getRoleColor(userItem.role)}`}
+                              >
+                                {teamName}
+                              </span>
+                            ))}
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {userItem.createdAt?.toLocaleDateString() || 'N/A'}
@@ -665,7 +701,16 @@ const UserManagement = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{userItem.email}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {userItem.teamId ? teamNames[userItem.teamId] || 'Unknown Team' : 'No Team'}
+                          <div className="flex flex-wrap gap-1">
+                            {getManagedTeams(userItem).map((teamName, index) => (
+                              <span
+                                key={index}
+                                className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getRoleColor(userItem.role)}`}
+                              >
+                                {teamName}
+                              </span>
+                            ))}
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {userItem.createdAt?.toLocaleDateString() || 'N/A'}
@@ -749,7 +794,16 @@ const UserManagement = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{userItem.email}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {userItem.teamId ? teamNames[userItem.teamId] || 'Unknown Team' : 'No Team'}
+                          <div className="flex flex-wrap gap-1">
+                            {getManagedTeams(userItem).map((teamName, index) => (
+                              <span
+                                key={index}
+                                className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getRoleColor(userItem.role)}`}
+                              >
+                                {teamName}
+                              </span>
+                            ))}
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {userItem.createdAt?.toLocaleDateString() || 'N/A'}

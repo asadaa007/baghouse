@@ -1,5 +1,5 @@
 import React from 'react';
-// import { Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { 
   Bug,
   CheckCircle,
@@ -94,7 +94,7 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({
     return (
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h3>
-        <div className="space-y-4">
+        <div className="max-h-96 overflow-y-auto space-y-4 pr-2">
           {[...Array(5)].map((_, i) => (
             <div key={i} className="animate-pulse">
               <div className="flex items-start space-x-3">
@@ -126,7 +126,7 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
       <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h3>
-      <div className="space-y-4">
+      <div className="max-h-96 overflow-y-auto space-y-4 pr-2">
         {displayActivities.map((activity) => {
           const IconComponent = getActivityIcon(activity.type);
           const colorClasses = getActivityColor(activity.type);
@@ -161,9 +161,12 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({
       </div>
       {activities.length > maxItems && (
         <div className="mt-4 pt-4 border-t border-gray-200">
-          <button className="text-sm text-primary hover:text-primary/80 font-medium">
-            View all {activities.length} activities
-          </button>
+          <Link 
+            to="/activities" 
+            className="text-sm text-primary hover:text-primary/80 font-medium"
+          >
+            View all
+          </Link>
         </div>
       )}
     </div>

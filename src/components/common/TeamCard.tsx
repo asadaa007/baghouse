@@ -19,7 +19,7 @@ import { Button, IconButton } from './buttons';
 interface TeamCardProps {
   team: Team;
   managerName?: string;
-  teamLeadName?: string;
+  teamLeadNames?: string[];
   projectCount?: number;
   performance?: number;
   bugsResolved?: number;
@@ -40,7 +40,7 @@ interface TeamCardProps {
 const TeamCard: React.FC<TeamCardProps> = ({
   team,
   managerName,
-  teamLeadName,
+  teamLeadNames = [],
   projectCount = 0,
   performance,
   bugsResolved = 0,
@@ -321,12 +321,23 @@ const TeamCard: React.FC<TeamCardProps> = ({
             </div>
           )}
           
-          {teamLeadName && (
-            <div className="flex items-center space-x-2 p-3 bg-green-50 rounded-lg">
-              <UserCheck className="w-4 h-4 text-green-500" />
-              <div>
-                <p className="text-xs text-gray-500">Team Lead</p>
-                <p className="text-sm font-medium text-gray-900">{teamLeadName}</p>
+          {teamLeadNames && teamLeadNames.length > 0 && (
+            <div className="p-3 bg-green-50 rounded-lg">
+              <div className="flex items-center space-x-2 mb-2">
+                <UserCheck className="w-4 h-4 text-green-500" />
+                <p className="text-xs text-gray-500">
+                  {teamLeadNames.length === 1 ? 'Team Lead' : 'Team Leads'}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {teamLeadNames.map((name, index) => (
+                  <span 
+                    key={index} 
+                    className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200"
+                  >
+                    {name}
+                  </span>
+                ))}
               </div>
             </div>
           )}

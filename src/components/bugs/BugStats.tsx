@@ -15,8 +15,8 @@ interface BugStatsProps {
 const BugStats: React.FC<BugStatsProps> = ({ bugs }) => {
   const totalBugs = bugs.length;
   const openBugs = bugs.filter(bug => bug.status === 'new' || bug.status === 'in-progress').length;
-  const resolvedBugs = bugs.filter(bug => bug.status === 'resolved' || bug.status === 'closed').length;
-  const closedBugs = bugs.filter(bug => bug.status === 'closed').length;
+  const resolvedBugs = bugs.filter(bug => bug.status === 'completed').length;
+  const closedBugs = bugs.filter(bug => bug.status === 'completed').length;
   const criticalBugs = bugs.filter(bug => bug.priority === 'critical').length;
   const highPriorityBugs = bugs.filter(bug => bug.priority === 'high').length;
   const assignedBugs = bugs.filter(bug => bug.assignee).length;

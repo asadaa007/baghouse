@@ -5,15 +5,19 @@ import Login from '../pages/Login';
 import Register from '../pages/Register';
 import Dashboard from '../pages/Dashboard';
 import Projects from '../pages/Projects';
-import ProjectDetail from '../pages/ProjectDetail';
+import Kanban from '../pages/Kanban';
 import ProjectPreview from '../pages/ProjectPreview';
 import ProjectAdd from '../pages/ProjectAdd';
 import ProjectEdit from '../pages/ProjectEdit';
 import Bugs from '../pages/Bugs';
 import BugDetail from '../pages/BugDetail';
+import BugDetailsView from '../pages/BugDetailsView';
+import BugAdd from '../pages/BugAdd';
+import BugEdit from '../pages/BugEdit';
 import Settings from '../pages/Settings';
 import UserManagement from '../pages/UserManagement';
 import Teams from '../pages/Teams';
+import Activities from '../pages/Activities';
 import ButtonTest from '../pages/ButtonTest';
 import RoleBasedRoute from '../components/common/RoleBasedRoute';
 
@@ -62,7 +66,7 @@ const AppRouter = () => {
         path="/projects/:projectId"
         element={
           <ProtectedRoute>
-            <ProjectDetail />
+            <Kanban />
           </ProtectedRoute>
         }
       />
@@ -78,7 +82,7 @@ const AppRouter = () => {
         path="/p/:slug"
         element={
           <ProtectedRoute>
-            <ProjectDetail />
+            <Kanban />
           </ProtectedRoute>
         }
       />
@@ -123,10 +127,34 @@ const AppRouter = () => {
         }
       />
       <Route
+        path="/bugs/add"
+        element={
+          <RoleBasedRoute allowedRoles={['super_admin', 'manager', 'team_lead']}>
+            <BugAdd />
+          </RoleBasedRoute>
+        }
+      />
+      <Route
+        path="/bugs/:id/edit"
+        element={
+          <RoleBasedRoute allowedRoles={['super_admin', 'manager', 'team_lead']}>
+            <BugEdit />
+          </RoleBasedRoute>
+        }
+      />
+      <Route
         path="/bugs/:id"
         element={
           <ProtectedRoute>
             <BugDetail />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/bugs/:id/view"
+        element={
+          <ProtectedRoute>
+            <BugDetailsView />
           </ProtectedRoute>
         }
       />
@@ -152,6 +180,14 @@ const AppRouter = () => {
           <RoleBasedRoute allowedRoles={['super_admin', 'manager']}>
             <Teams />
           </RoleBasedRoute>
+        }
+      />
+      <Route
+        path="/activities"
+        element={
+          <ProtectedRoute>
+            <Activities />
+          </ProtectedRoute>
         }
       />
 

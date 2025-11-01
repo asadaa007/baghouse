@@ -79,6 +79,22 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, className 
   const renderMarkdownText = (text: string) => {
     let html = text;
     
+    // Remove stray HTML attributes that might be mixed in with markdown content
+    html = html.replace(/class="[^"]*"/g, '');
+    html = html.replace(/target="[^"]*"/g, '');
+    html = html.replace(/rel="[^"]*"/g, '');
+    html = html.replace(/style="[^"]*"/g, '');
+    html = html.replace(/data-[^=]*="[^"]*"/g, '');
+    
+    // Remove orphaned HTML fragments
+    html = html.replace(/>\s*/g, ' ');
+    html = html.replace(/\s*</g, ' ');
+    html = html.replace(/\s*>\s*/g, ' ');
+    
+    // Clean up multiple spaces but preserve line breaks
+    html = html.replace(/[ \t]+/g, ' ');
+    html = html.trim();
+    
     // Handle headers (process from largest to smallest to avoid conflicts)
     html = html.replace(/^### (.*$)/gim, '<h3 class="text-lg font-semibold text-gray-900 mt-4 mb-2">$1</h3>');
     html = html.replace(/^## (.*$)/gim, '<h2 class="text-xl font-bold text-gray-900 mt-6 mb-3">$1</h2>');
@@ -87,38 +103,18 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, className 
     // Handle blockquotes
     html = html.replace(/^> (.*$)/gim, '<blockquote class="border-l-4 border-gray-300 pl-4 py-2 my-2 text-gray-600 bg-gray-50 rounded-r">$1</blockquote>');
     
-    // Handle numbered lists
+    // Handle markdown links
+    if (!html.includes('<a href=')) {
+      html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-blue-600 hover:text-blue-800 underline" target="_blank" rel="noopener noreferrer">$1</a>');
+    }
+    
+    // Handle numbered lists (after links are processed)
     html = html.replace(/^(\d+)\. (.*$)/gim, '<li class="ml-4 list-decimal">$2</li>');
     
-    // Handle unordered lists
+    // Handle unordered lists (after links are processed)
     html = html.replace(/^- (.*$)/gim, '<li class="ml-4 list-disc">$1</li>');
     
-    // Handle markdown links FIRST (before other formatting)
-    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-blue-600 hover:text-blue-800 underline transition-colors duration-200" target="_blank" rel="noopener noreferrer">$1</a>');
     
-    // Auto-detect and convert plain URLs to clickable links
-    const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}(?:\/[^\s]*)?)/g;
-    html = html.replace(urlRegex, (url) => {
-      // Skip if already a markdown link
-      if (url.includes('[') && url.includes('](')) {
-        return url;
-      }
-      
-      let fullUrl = url;
-      // Add protocol if missing
-      if (!url.startsWith('http://') && !url.startsWith('https://')) {
-        fullUrl = 'https://' + url;
-      }
-      
-      let displayText = url.replace(/^https?:\/\//, '').replace(/^www\./, '');
-      
-      // Truncate very long URLs for better display
-      if (displayText.length > 50) {
-        displayText = displayText.substring(0, 47) + '...';
-      }
-      
-      return `<a href="${fullUrl}" class="text-blue-600 hover:text-blue-800 underline transition-colors duration-200 break-all" target="_blank" rel="noopener noreferrer" title="${fullUrl}">${displayText}</a>`;
-    });
     
     // Handle inline formatting
     html = html.replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-gray-900">$1</strong>');
@@ -135,7 +131,10 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, className 
     }
     
     return (
-      <div dangerouslySetInnerHTML={{ __html: html }} />
+      <div 
+        dangerouslySetInnerHTML={{ __html: html }}
+        key={`markdown-${Math.random()}`}
+      />
     );
   };
 

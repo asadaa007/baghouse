@@ -1,15 +1,14 @@
 import{ useState, useMemo, useEffect, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useBugs } from '../context/BugContext';
 import { useProjects } from '../context/ProjectContext';
 import { useAuth } from '../context/AuthContext';
 import { getAllUsers } from '../services/userService';
 import type { AppUser } from '../types/auth';
 import Navigation from '../components/layout/Navigation';
-import BugForm from '../components/dashboard/BugForm';
+// import BugForm from '../components/dashboard/BugForm';
 import BugFilters from '../components/bugs/BugFilters';
 import BugTable from '../components/bugs/BugTable';
-import BugViewModal from '../components/bugs/BugViewModal';
 import BreadcrumbNew from '../components/common/BreadcrumbNew';
 import Loading from '../components/common/Loading';
 import { Plus, RefreshCw } from 'lucide-react';
@@ -21,17 +20,18 @@ const Bugs = () => {
   const { projects } = useProjects();
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   
   const [searchTerm, setSearchTerm] = useState('');
 
   // Role-based permissions
   const canCreateBug = user?.role === 'super_admin' || user?.role === 'manager' || user?.role === 'team_lead';
   const [filters, setFilters] = useState<BugFiltersType>({});
-  const [isBugFormOpen, setIsBugFormOpen] = useState(false);
-  const [viewModalOpen, setViewModalOpen] = useState(false);
-  const [selectedBug, setSelectedBug] = useState<Bug | null>(null);
-  const [editingBug, setEditingBug] = useState<Bug | null>(null);
   const [allUsers, setAllUsers] = useState<AppUser[]>([]);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const bugsPerPage = 15;
 
   // Load users for slug conversion
   useEffect(() => {
@@ -195,6 +195,18 @@ const Bugs = () => {
     });
   }, [bugs, activeProjectIds, searchTerm, filters]);
 
+  // Pagination logic
+  const totalBugs = filteredBugs.length;
+  const totalPages = Math.ceil(totalBugs / bugsPerPage);
+  const startIndex = (currentPage - 1) * bugsPerPage;
+  const endIndex = startIndex + bugsPerPage;
+  const paginatedBugs = filteredBugs.slice(startIndex, endIndex);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filters]);
+
   const handleStatusChange = async (bugId: string, status: string) => {
     try {
       await updateBug(bugId, { status: status as BugStatus });
@@ -243,8 +255,9 @@ const Bugs = () => {
   };
 
   const handleEditBug = (bug: Bug) => {
-    setEditingBug(bug);
-    setIsBugFormOpen(true);
+    // Remove # from bug ID if present
+    const cleanBugId = bug.id.replace('#', '');
+    navigate(`/bugs/${cleanBugId}/edit`);
   };
 
   if (loading) {
@@ -290,7 +303,7 @@ const Bugs = () => {
               />
               {canCreateBug && (
                 <Button
-                  onClick={() => setIsBugFormOpen(true)}
+                  onClick={() => navigate('/bugs/add')}
                   variant="primary"
                   icon={Plus}
                 >
@@ -324,13 +337,13 @@ const Bugs = () => {
         {/* Bugs Count */}
         <div className="flex items-center justify-end mb-4">
           <div className="text-sm text-gray-600">
-            Showing {filteredBugs.length} of {bugs.length} bugs
+            Showing {startIndex + 1}-{Math.min(endIndex, totalBugs)} of {totalBugs} bugs
           </div>
         </div>
 
         {/* Bugs Table */}
         <BugTable
-          bugs={filteredBugs}
+          bugs={paginatedBugs}
           onDeleteBug={handleDeleteBug}
           onBulkDelete={handleBulkDelete}
           onStatusChange={handleStatusChange}
@@ -339,29 +352,34 @@ const Bugs = () => {
           loading={loading}
         />
 
+        {/* Pagination Controls - Bottom Left */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-start mt-6">
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Previous
+              </button>
+              <span className="text-sm text-gray-600">
+                Page {currentPage} of {totalPages}
+              </span>
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
+
       </div>
 
-              {/* Bug Form Modal */}
-        <BugForm
-          isOpen={isBugFormOpen}
-          onClose={() => {
-            setIsBugFormOpen(false);
-            setEditingBug(null);
-          }}
-          bug={editingBug}
-        />
 
-        {/* Bug View Modal */}
-        <BugViewModal
-          isOpen={viewModalOpen}
-          onClose={() => {
-            setViewModalOpen(false);
-            setSelectedBug(null);
-          }}
-          bug={selectedBug}
-          onEdit={handleEditBug}
-          onDelete={handleDeleteBug}
-        />
       </div>
     );
   };

@@ -23,7 +23,7 @@ export interface CreateTeamData {
   name: string;
   description?: string;
   managerId: string;
-  teamLeadId?: string;
+  teamLeadIds?: string[];
 }
 
 export interface AddMemberData {
@@ -45,8 +45,14 @@ export interface TeamPerformance {
 export const createTeam = async (teamData: CreateTeamData): Promise<string> => {
   try {
     const members = [teamData.managerId]; // Manager is automatically a member
-    if (teamData.teamLeadId && teamData.teamLeadId !== teamData.managerId) {
-      members.push(teamData.teamLeadId); // Add team lead if different from manager
+    
+    // Add team leads if provided
+    if (teamData.teamLeadIds && teamData.teamLeadIds.length > 0) {
+      teamData.teamLeadIds.forEach(teamLeadId => {
+        if (teamLeadId !== teamData.managerId && !members.includes(teamLeadId)) {
+          members.push(teamLeadId);
+        }
+      });
     }
 
     const teamDoc = await addDoc(collection(db, TEAMS_COLLECTION), {
@@ -63,13 +69,17 @@ export const createTeam = async (teamData: CreateTeamData): Promise<string> => {
       teamId: teamDoc.id, // Manager belongs to their own team
     });
 
-    // Update team lead's teamId if different from manager
-    if (teamData.teamLeadId && teamData.teamLeadId !== teamData.managerId) {
-      const teamLeadRef = doc(db, USERS_COLLECTION, teamData.teamLeadId);
-      await updateDoc(teamLeadRef, {
-        teamId: teamDoc.id,
-        updatedAt: new Date(),
-      });
+    // Update team leads' teamId if provided
+    if (teamData.teamLeadIds && teamData.teamLeadIds.length > 0) {
+      for (const teamLeadId of teamData.teamLeadIds) {
+        if (teamLeadId !== teamData.managerId) {
+          const teamLeadRef = doc(db, USERS_COLLECTION, teamLeadId);
+          await updateDoc(teamLeadRef, {
+            teamId: teamDoc.id,
+            updatedAt: new Date(),
+          });
+        }
+      }
     }
 
     return teamDoc.id;
@@ -175,6 +185,65 @@ export const getTeamsByManager = async (managerId: string): Promise<Team[]> => {
     }
     
     throw new Error('Failed to get manager teams');
+  }
+};
+
+// Get teams led by a specific team lead
+export const getTeamsByTeamLead = async (teamLeadId: string): Promise<Team[]> => {
+  try {
+    const q = query(
+      collection(db, TEAMS_COLLECTION),
+      where('teamLeadIds', 'array-contains', teamLeadId),
+      orderBy('createdAt', 'desc')
+    );
+    const querySnapshot = await getDocs(q);
+    const teams = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      createdAt: doc.data().createdAt?.toDate() || new Date(),
+      updatedAt: doc.data().updatedAt?.toDate() || new Date(),
+    })) as Team[];
+    
+    // Sync team members from users collection
+    const syncedTeams = await Promise.all(teams.map(async (team) => {
+      // Get all users that belong to this team
+      const usersQuery = query(
+        collection(db, USERS_COLLECTION),
+        where('teamId', '==', team.id)
+      );
+      const usersSnapshot = await getDocs(usersQuery);
+      const teamMemberIds = usersSnapshot.docs.map(userDoc => userDoc.id);
+      
+      // Update team with synced members if different
+      if (JSON.stringify(team.members?.sort()) !== JSON.stringify(teamMemberIds.sort())) {
+        await updateDoc(doc(db, TEAMS_COLLECTION, team.id), {
+          members: teamMemberIds,
+          updatedAt: new Date()
+        });
+        team.members = teamMemberIds;
+      }
+      
+      return team;
+    }));
+    
+    return syncedTeams;
+  } catch (error: unknown) {
+    console.error('Error getting team lead teams with index query:', error);
+    
+    // Fallback: Get all teams and filter client-side if index is not ready
+    const errorObj = error as { code?: string; message?: string };
+    if (errorObj.code === 'failed-precondition' || errorObj.message?.includes('index')) {
+      try {
+        const allTeams = await getAllTeams();
+        const teamLeadTeams = allTeams.filter(team => team.teamLeadIds?.includes(teamLeadId));
+        return teamLeadTeams;
+      } catch (fallbackError) {
+        console.error('Fallback method also failed:', fallbackError);
+        throw new Error('Failed to get team lead teams');
+      }
+    }
+    
+    throw new Error('Failed to get team lead teams');
   }
 };
 
